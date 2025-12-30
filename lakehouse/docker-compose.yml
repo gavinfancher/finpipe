@@ -39,25 +39,20 @@ services:
       exit 0
       "
 
-  # === ICEBERG CATALOG ===
-  rest:
-    image: apache/iceberg-rest-fixture
-    container_name: iceberg-rest-catalog
+  nessie:
+    image: ghcr.io/projectnessie/nessie
+    container_name: nessie
     restart: unless-stopped
     networks:
       iceberg_net:
-    depends_on:
-      - minio
     ports:
-      - "0.0.0.0:8181:8181"
+      - "0.0.0.0:19120:19120"
     environment:
-      - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
-      - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
-      - AWS_REGION=${AWS_REGION}
-      - CATALOG_WAREHOUSE=s3://warehouse/
-      - CATALOG_IO__IMPL=org.apache.iceberg.aws.s3.S3FileIO
-      - CATALOG_S3_ENDPOINT=http://minio:9000
-
+      - NESSIE_VERSION_STORE_TYPE=ROCKSDB
+      - NESSIE_VERSION_STORE_PERSIST_ROCKS_DATABASE_PATH=/nessie/data
+    volumes:
+      - ./data/nessie:/nessie/data
+      
   # === COMPUTE LAYER ===
   spark-iceberg:
     image: tabulario/spark-iceberg
@@ -67,7 +62,7 @@ services:
     networks:
       iceberg_net:
     depends_on:
-      - rest
+      - nessie
       - minio
     volumes:
       - ./spark/spark-defaults.conf:/opt/spark/conf/spark-defaults.conf:ro
@@ -105,10 +100,10 @@ services:
     networks:
       iceberg_net:
     depends_on:
-      - rest
+      - nessie
       - minio
     ports:
-      - "0.0.0.0:8085:8085"
+      - "0.0.0.0:8085:8080"
     volumes:
       - ./trino/catalog:/etc/trino/catalog:ro
     environment:
