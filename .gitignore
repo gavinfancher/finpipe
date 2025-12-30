@@ -9,3 +9,6 @@ lakehouse/trino/catalog/iceberg.properties
 lakehouse/data/*
 !lakehouse/data/README.md
 
+
+# other files
+.DS_Store
