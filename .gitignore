@@ -1,0 +1,11 @@
+# Environment files
+.env
+*.env
+
+# Config files (keep .example versions)
+lakehouse/trino/catalog/iceberg.properties
+
+# Data directory (keep README)
+lakehouse/data/*
+!lakehouse/data/README.md
+
