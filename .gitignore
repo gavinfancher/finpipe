@@ -2,6 +2,8 @@
 .env
 *.env
 
+dagster/uv.lock
+dagster/.venv
 # Config files (keep .example versions)
 lakehouse/trino/catalog/iceberg.properties
 
