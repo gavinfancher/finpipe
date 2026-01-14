@@ -39,10 +39,21 @@ services:
       exit 0
       "
 
+  nessie-init:
+    image: busybox:latest
+    container_name: nessie-init
+    volumes:
+      - ./data/nessie:/nessie/data
+    command: sh -c "chown -R 10000:10000 /nessie/data"
+    user: root
+
   nessie:
     image: ghcr.io/projectnessie/nessie:0.99.0  # Check: curl -s localhost:19120/api/v2/config | jq .version
     container_name: nessie
     restart: unless-stopped
+    depends_on:
+      nessie-init:
+        condition: service_completed_successfully
     networks:
       iceberg_net:
     ports:
@@ -55,7 +66,7 @@ services:
       
   # === COMPUTE LAYER ===
   spark-iceberg:
-    image: tabulario/spark-iceberg:3.5.5_1.7.1
+    image: tabulario/spark-iceberg:3.5.5_1.8.1
     container_name: spark-iceberg
     restart: unless-stopped
     build: spark/
