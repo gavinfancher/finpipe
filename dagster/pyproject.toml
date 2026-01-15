@@ -6,9 +6,12 @@ dependencies = [
     "boto3>=1.42.28",
     "dagster>=1.12.10",
     "dagster-webserver>=1.12.10",
+    "grpcio>=1.48.1",
+    "grpcio-status>=1.48.1",
     "httpx>=0.28.1",
+    "pandas>=2.2.0",
     "pyarrow>=22.0.0",
-    "pyspark>=3.5.5",
+    "pyspark[connect]>=3.5.5",
     "python-dotenv>=1.2.1",
     "trino>=0.336.0",
 ]

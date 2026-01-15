@@ -96,9 +96,9 @@ services:
         
         # Start Spark Connect server
         /opt/spark/sbin/start-connect-server.sh \
-          --packages org.apache.spark:spark-connect_2.12:3.5.5 \
-          --conf spark.connect.grpc.binding.port=15002 \
-          --conf spark.connect.grpc.binding.address=0.0.0.0
+          --properties-file /opt/spark/conf/spark-defaults.conf \
+          --conf "spark.hadoop.fs.s3a.access.key=$AWS_ACCESS_KEY_ID" \
+          --conf "spark.hadoop.fs.s3a.secret.key=$AWS_SECRET_ACCESS_KEY"
         
         # Keep container running
         tail -f /opt/spark/logs/*

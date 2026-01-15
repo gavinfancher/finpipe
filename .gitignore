@@ -2,6 +2,7 @@
 .env
 *.env
 
+*__pycache__*
 dagster/uv.lock
 dagster/.venv
 # Config files (keep .example versions)
@@ -11,6 +12,7 @@ lakehouse/trino/catalog/iceberg.properties
 lakehouse/data/*
 !lakehouse/data/README.md
 
+dagster/dagster_home
 
 # other files
 .DS_Store
