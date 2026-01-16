@@ -48,7 +48,7 @@ services:
     user: root
 
   nessie:
-    image: ghcr.io/projectnessie/nessie:0.99.0  # Check: curl -s localhost:19120/api/v2/config | jq .version
+    image: ghcr.io/projectnessie/nessie:0.99.0
     container_name: nessie
     restart: unless-stopped
     depends_on:
@@ -81,6 +81,8 @@ services:
       - AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}
       - AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}
       - AWS_REGION=${AWS_REGION}
+      - MASSIVE_ACCESS_KEY=${MASSIVE_ACCESS_KEY}
+      - MASSIVE_SECRET_KEY=${MASSIVE_SECRET_KEY}
     ports:
       - "0.0.0.0:8080:8080"            # Spark UI
       - "0.0.0.0:10000:10000"          # Thrift server
@@ -91,16 +93,15 @@ services:
     entrypoint: ["/bin/bash", "-c"]
     command:
       - |
-        # Create required directories
         mkdir -p /tmp/spark-events
         
-        # Start Spark Connect server
         /opt/spark/sbin/start-connect-server.sh \
           --properties-file /opt/spark/conf/spark-defaults.conf \
           --conf "spark.hadoop.fs.s3a.access.key=$AWS_ACCESS_KEY_ID" \
-          --conf "spark.hadoop.fs.s3a.secret.key=$AWS_SECRET_ACCESS_KEY"
+          --conf "spark.hadoop.fs.s3a.secret.key=$AWS_SECRET_ACCESS_KEY" \
+          --conf "spark.hadoop.fs.s3a.bucket.flatfiles.access.key=$MASSIVE_ACCESS_KEY" \
+          --conf "spark.hadoop.fs.s3a.bucket.flatfiles.secret.key=$MASSIVE_SECRET_KEY"
         
-        # Keep container running
         tail -f /opt/spark/logs/*
 
   # === QUERY LAYER ===

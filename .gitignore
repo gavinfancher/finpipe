@@ -1,18 +1,23 @@
-# Environment files
-.env
+
+
+
+# ignore all environment files
 *.env
 
-*__pycache__*
-dagster/uv.lock
-dagster/.venv
-# Config files (keep .example versions)
+# ignore lakehouse config files to ignore becuase they have secrets
 lakehouse/trino/catalog/iceberg.properties
 
-# Data directory (keep README)
+# ignore the lakehouse data directory but keep README
 lakehouse/data/*
 !lakehouse/data/README.md
 
-dagster/dagster_home
 
-# other files
+# ignore other local cache files
+*__pycache__*
+*uv.lock
+
+# ignore venv's
+*.venv
+
+# ignore other files
 .DS_Store
