@@ -1,8 +1,8 @@
-"""
+'''
 Dagster definitions for the finpy lakehouse.
 
 Configures resources, assets, and sensors for the data pipeline.
-"""
+'''
 
 from pathlib import Path
 
@@ -10,7 +10,7 @@ from dotenv import load_dotenv
 from dagster import Definitions, load_assets_from_modules
 
 # Load .env from the dagster/ directory (parent of pipelines/)
-_env_path = Path(__file__).parent.parent / ".env"
+_env_path = Path(__file__).parent.parent / '.env'
 load_dotenv(_env_path)
 
 from .assets import bronze

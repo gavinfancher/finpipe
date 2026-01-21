@@ -11,10 +11,11 @@ dependencies = [
     "httpx>=0.28.1",
     "pandas>=2.3.3",
     "pyarrow>=22.0.0",
-    "pyspark[connect]>=3.5.5",
+    "pyspark[connect]==3.5.5",
     "python-dotenv>=1.2.1",
     "trino>=0.336.0",
 ]
 
 [tool.dagster]
 module_name = "pipelines.definitions"
+code_location_name = "finpy"
