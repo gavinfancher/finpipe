@@ -1,3 +1,1 @@
-"""Assets module."""
-
-from . import bronze
+from . import bronze, silver

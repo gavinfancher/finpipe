@@ -1,5 +1,7 @@
 from dagster import AssetKey, Config, OpExecutionContext, define_asset_job, job, op
+from pyspark.sql import functions as F
 from pyspark.sql.functions import input_file_name, regexp_extract
+from pyspark.sql.window import Window
 
 from .resources import MassiveS3Resource, SparkConnectResource
 from .assets.bronze import ingest_minute_agg_file
@@ -115,4 +117,89 @@ def backfill_parallel_job():
     backfill_parallel()
 
 
-all_jobs = [bronze_minute_aggs_job, backfill_sequential_job, backfill_parallel_job]
+# Silver job - run on specific ticker + date from Launchpad
+class SilverConfig(Config):
+    ticker: str = 'AAPL'
+    date: str = '2026-01-14'  # YYYY-MM-DD
+
+
+def rolling_window(partition_cols, order_col, rows_back):
+    return Window.partitionBy(*partition_cols).orderBy(order_col).rowsBetween(-rows_back, 0)
+
+
+@op
+def build_silver_for_ticker(
+    context: OpExecutionContext,
+    config: SilverConfig,
+    spark: SparkConnectResource,
+) -> None:
+    session = spark.get_session()
+    ticker = config.ticker.upper()
+    date = config.date
+
+    context.log.info(f'Building silver for {ticker} on {date}')
+
+    # Read bronze filtered by ticker and date
+    df = (
+        session.table('iceberg.bronze.minute_aggs')
+        .filter(F.col('ticker') == ticker)
+        .filter(F.col('date') == date)
+    )
+
+    row_count = df.count()
+    if row_count == 0:
+        context.log.warning(f'No data found for {ticker} on {date}')
+        return
+
+    context.log.info(f'Found {row_count:,} rows')
+
+    # Convert timestamp (already in ET)
+    df = df.withColumn('timestamp', (F.col('window_start') / 1e9).cast('timestamp'))
+
+    # Market session enum: premarket, market, postmarket
+    time_minutes = F.hour('timestamp') * 60 + F.minute('timestamp')
+    df = df.withColumn(
+        'session',
+        F.when((time_minutes >= 4 * 60) & (time_minutes < 9 * 60 + 30), 'premarket')
+        .when((time_minutes >= 9 * 60 + 30) & (time_minutes < 16 * 60), 'market')
+        .when((time_minutes >= 16 * 60) & (time_minutes < 20 * 60), 'postmarket')
+        .otherwise('closed')
+    )
+
+    # 15-minute rolling metrics
+    win_15 = rolling_window(['ticker', 'date'], 'timestamp', 14)
+    df = (
+        df.withColumn('rolling_15m_avg_close', F.avg('close').over(win_15))
+        .withColumn('rolling_15m_avg_volume', F.avg('volume').over(win_15))
+        .withColumn('rolling_15m_high', F.max('high').over(win_15))
+        .withColumn('rolling_15m_low', F.min('low').over(win_15))
+        .withColumn('rolling_15m_total_volume', F.sum('volume').over(win_15))
+    )
+
+    # Write to silver
+    table_name = 'iceberg.silver.minute_aggs'
+
+    if not session.catalog.tableExists(table_name):
+        context.log.info('Creating silver.minute_aggs table...')
+        (
+            df.writeTo(table_name)
+            .tableProperty('write.format.default', 'parquet')
+            .tableProperty('write.parquet.compression-codec', 'zstd')
+            .partitionedBy('date')
+            .create()
+        )
+    else:
+        # Delete existing data for this ticker+date, then append
+        context.log.info(f'Replacing {ticker} data for {date}...')
+        session.sql(f"DELETE FROM {table_name} WHERE ticker = '{ticker}' AND date = '{date}'")
+        df.writeTo(table_name).append()
+
+    context.log.info(f'✓ Written {row_count:,} rows to silver.minute_aggs')
+
+
+@job
+def silver_ticker_job():
+    build_silver_for_ticker()
+
+
+all_jobs = [bronze_minute_aggs_job, backfill_sequential_job, backfill_parallel_job, silver_ticker_job]
