@@ -86,6 +86,9 @@ finpy/
 ├── lakehouse/            # Infrastructure
 │   ├── docker-compose.yml
 │   └── spark/            # Spark configuration
+├── mcp/                  # MCP server for Claude Desktop integration
+│   ├── server.py         # Query tools for LLM access
+│   └── pyproject.toml
 └── tests/
 ```
 
@@ -114,10 +117,22 @@ uv run dagster dev
    - 15-minute rolling metrics (avg close, volume, high/low)
 4. **Trino** provides SQL access for analytics and dashboards
 
+## MCP Server (LLM Integration)
+
+The `mcp/` directory contains an MCP server for querying data via Claude Desktop:
+
+```
+You: "Get me SPY for the last 3 days as parquet"
+Claude: *calls export_parquet* → /tmp/finpy_exports/spy_2026-01-17_to_2026-01-20.parquet
+```
+
+See [mcp/README.md](mcp/README.md) for setup instructions.
+
 ## Skills Demonstrated
 
 - **Data Lakehouse Architecture**: Medallion pattern with Iceberg tables
 - **Distributed Computing**: Spark optimization for parallel I/O
 - **Pipeline Orchestration**: Dagster assets, sensors, and jobs
 - **Infrastructure as Code**: Docker Compose for reproducible environments
+- **LLM Tool Integration**: MCP server for natural language data access
 - **Modern Python**: Type hints, dataclasses, uv package management
