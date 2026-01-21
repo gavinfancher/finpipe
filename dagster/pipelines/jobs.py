@@ -153,8 +153,11 @@ def build_silver_for_ticker(
 
     context.log.info(f'Found {row_count:,} rows')
 
-    # Convert timestamp (already in ET)
-    df = df.withColumn('timestamp', (F.col('window_start') / 1e9).cast('timestamp'))
+    # Convert nanosecond timestamp to Eastern Time
+    df = df.withColumn(
+        'timestamp',
+        F.from_utc_timestamp((F.col('window_start') / 1e9).cast('timestamp'), 'America/New_York')
+    )
 
     # Market session enum: premarket, market, postmarket
     time_minutes = F.hour('timestamp') * 60 + F.minute('timestamp')
@@ -176,7 +179,7 @@ def build_silver_for_ticker(
         .withColumn('rolling_15m_total_volume', F.sum('volume').over(win_15))
     )
 
-    # Write to silver
+    # Write to silver (create or append)
     table_name = 'iceberg.silver.minute_aggs'
 
     if not session.catalog.tableExists(table_name):
@@ -189,9 +192,7 @@ def build_silver_for_ticker(
             .create()
         )
     else:
-        # Delete existing data for this ticker+date, then append
-        context.log.info(f'Replacing {ticker} data for {date}...')
-        session.sql(f"DELETE FROM {table_name} WHERE ticker = '{ticker}' AND date = '{date}'")
+        context.log.info(f'Appending {ticker} data for {date}...')
         df.writeTo(table_name).append()
 
     context.log.info(f'✓ Written {row_count:,} rows to silver.minute_aggs')

@@ -27,8 +27,11 @@ def silver_minute_aggs(
     session = spark.get_session()
     df = session.table('iceberg.bronze.minute_aggs')
 
-    # Convert nanosecond timestamp to readable datetime (already in ET)
-    df = df.withColumn('timestamp', (F.col('window_start') / 1e9).cast('timestamp'))
+    # Convert nanosecond timestamp to Eastern Time
+    df = df.withColumn(
+        'timestamp',
+        F.from_utc_timestamp((F.col('window_start') / 1e9).cast('timestamp'), 'America/New_York')
+    )
 
     # Market session enum: premarket, market, postmarket
     time_minutes = F.hour('timestamp') * 60 + F.minute('timestamp')
@@ -65,8 +68,8 @@ def silver_minute_aggs(
             .create()
         )
     else:
-        context.log.info('Overwriting silver.minute_aggs...')
-        df.writeTo(table_name).overwritePartitions()
+        context.log.info('Appending to silver.minute_aggs...')
+        df.writeTo(table_name).append()
 
     row_count = df.count()
     context.log.info(f'Written {row_count:,} rows to silver.minute_aggs')
