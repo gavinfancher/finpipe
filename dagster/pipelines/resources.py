@@ -102,7 +102,7 @@ class SparkConnectResource(ConfigurableResource):
     '''Spark Connect client resource for remote PySpark execution.'''
 
     host: str = ''
-    port: int = 15002
+    port: int = None
 
     def get_session(self) -> SparkSession:
         '''Get a SparkSession connected to the remote Spark Connect server.'''
@@ -114,46 +114,26 @@ class SparkConnectResource(ConfigurableResource):
 
 
 def get_configured_resources() -> dict[str, Any]:
-    '''
-    Get resources configured from environment variables.
 
-    All services are remote - only Dagster runs locally.
-
-    Environment variables:
-        # MinIO (your lakehouse - from docker-compose)
-        MINIO_DOMAIN: MinIO domain/host
-        MINIO_PORT: MinIO S3 API port (default: 9000)
-        MINIO_ACCESS_KEY: MinIO access key (MINIO_ROOT_USER from docker-compose)
-        MINIO_SECRET_KEY: MinIO secret key (MINIO_ROOT_PASSWORD from docker-compose)
-
-        # Massive S3 (external data source)
-        MASSIVE_ACCESS_KEY: Your Massive API key ID
-        MASSIVE_SECRET_KEY: Your Massive API secret
-
-        # Spark Connect (your lakehouse)
-        SPARK_HOST: Spark Connect host
-        SPARK_PORT: Spark Connect port (default: 15002)
-    '''
-    # Build MinIO endpoint from domain and port
-    minio_domain = os.getenv('MINIO_DOMAIN', 'localhost')
-    minio_port = os.getenv('MINIO_PORT', '9000')
+    minio_domain = os.getenv('MINIO_DOMAIN')
+    minio_port = os.getenv('MINIO_PORT')
     minio_endpoint = f'http://{minio_domain}:{minio_port}'
 
     return {
         'minio': MinioResource(
             endpoint_url=minio_endpoint,
-            access_key=os.getenv('MINIO_ACCESS_KEY', ''),
-            secret_key=os.getenv('MINIO_SECRET_KEY', ''),
-            region=os.getenv('AWS_REGION', 'us-east-1'),
+            access_key=os.getenv('MINIO_ACCESS_KEY'),
+            secret_key=os.getenv('MINIO_SECRET_KEY'),
+            region=os.getenv('AWS_REGION'),
         ),
         'massive_s3': MassiveS3Resource(
             endpoint_url='https://files.massive.com',
-            access_key=os.getenv('MASSIVE_ACCESS_KEY', ''),
-            secret_key=os.getenv('MASSIVE_SECRET_KEY', ''),
+            access_key=os.getenv('MASSIVE_ACCESS_KEY'),
+            secret_key=os.getenv('MASSIVE_SECRET_KEY'),
             bucket='flatfiles',
         ),
         'spark': SparkConnectResource(
-            host=os.getenv('SPARK_HOST', ''),
-            port=int(os.getenv('SPARK_PORT', '15002')),
+            host=os.getenv('SPARK_HOST'),
+            port=int(os.getenv('SPARK_PORT')),
         ),
     }

@@ -83,6 +83,11 @@ services:
       - AWS_REGION=${AWS_REGION}
       - MASSIVE_ACCESS_KEY=${MASSIVE_ACCESS_KEY}
       - MASSIVE_SECRET_KEY=${MASSIVE_SECRET_KEY}
+      - SPARK_DRIVER_MEMORY=24g
+    deploy:
+      resources:
+        limits:
+          memory: 28g
     ports:
       - "0.0.0.0:8080:8080"            # Spark UI
       - "0.0.0.0:10000:10000"          # Thrift server
