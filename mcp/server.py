@@ -10,7 +10,11 @@ import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
+from dotenv import load_dotenv
 import trino
+
+# Load .env file from the same directory as this script
+load_dotenv(Path(__file__).parent / ".env")
 import pyarrow as pa
 import pyarrow.parquet as pq
 from mcp.server import Server
