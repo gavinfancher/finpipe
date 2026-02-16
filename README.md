@@ -1,4 +1,4 @@
-# finpy
+# finpipe
 
 A production-grade data lakehouse for US equities market data, built with modern data engineering best practices.
 
@@ -75,7 +75,7 @@ Spark's parallel read creates **one partition per input file**, allowing concurr
 ## Project Structure
 
 ```
-finpy/
+finpipe/
 ├── dagster/              # Pipeline orchestration
 │   ├── pipelines/
 │   │   ├── assets/       # Bronze & Silver layer transformations
@@ -123,7 +123,7 @@ The `mcp/` directory contains an MCP server for querying data via Claude Desktop
 
 ```
 You: "Get me SPY for the last 3 days as parquet"
-Claude: *calls export_parquet* → /tmp/finpy_exports/spy_2026-01-17_to_2026-01-20.parquet
+Claude: *calls export_parquet* → /tmp/finpipe_exports/spy_2026-01-17_to_2026-01-20.parquet
 ```
 
 See [mcp/README.md](mcp/README.md) for setup instructions.
