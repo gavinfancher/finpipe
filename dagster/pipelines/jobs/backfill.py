@@ -4,9 +4,9 @@ from ..resources import MassiveS3Resource, SparkConnectResource
 from ..transforms.ingest_minute_aggs import ingest_minute_agg_batch, ingest_minute_agg_file
 
 
-bronze_minute_aggs_job = define_asset_job(
-    name='bronze_minute_aggs_job',
-    selection=[AssetKey('bronze_minute_aggs')],
+daily_elt_job = define_asset_job(
+    name='daily_elt_job',
+    selection=[AssetKey('bronze_minute_aggs'), AssetKey('silver_minute_aggs')],
 )
 
 
