@@ -7,12 +7,12 @@ from dagster import (
     SensorEvaluationContext,
     SensorResult,
     SkipReason,
-    sensor,
+    sensor
 )
 
-from .resources import MassiveS3Resource
-from .jobs import bronze_minute_aggs_job
-from .assets.bronze import MinuteAggsConfig
+from ..resources import MassiveS3Resource
+from ..jobs import bronze_minute_aggs_job
+from ..assets.bronze_minute_aggs import MinuteAggsConfig
 
 
 # Monitors Massive S3 for new minute aggregate files
@@ -29,7 +29,10 @@ def massive_minute_aggs_sensor(
     now = datetime.now()
 
     try:
-        objects = massive_s3.list_minute_aggs(year=now.year, month=now.month)
+        prefix = f'us_stocks_sip/minute_aggs_v1/{now.year}/{now.month:02d}/'
+        client = massive_s3.get_client()
+        response = client.list_objects_v2(Bucket=massive_s3.bucket, Prefix=prefix)
+        objects = response.get('Contents', [])
     except Exception as e:
         context.log.error(f'Failed to list Massive S3: {e}')
         return SkipReason(f'Massive S3 connection failed: {e}')
