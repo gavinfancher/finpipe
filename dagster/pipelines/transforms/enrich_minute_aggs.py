@@ -1,4 +1,4 @@
-"""Silver enrichment: timestamp conversion, session classification, rolling metrics."""
+'''Silver enrichment: timestamp conversion, session classification, rolling metrics.'''
 
 from pyspark.sql import DataFrame
 from pyspark.sql import functions as F
@@ -6,7 +6,7 @@ from pyspark.sql.window import Window
 
 
 def rolling_window(partition_cols, order_col, rows_back):
-    """Create a Spark window spec for rolling calculations."""
+    '''Create a Spark window spec for rolling calculations.'''
     return (
         Window.partitionBy(*partition_cols)
         .orderBy(order_col)
@@ -15,7 +15,7 @@ def rolling_window(partition_cols, order_col, rows_back):
 
 
 def add_timestamp(df: DataFrame) -> DataFrame:
-    """Convert nanosecond window_start to Eastern Time timestamp."""
+    '''Convert nanosecond window_start to Eastern Time timestamp.'''
     return df.withColumn(
         'timestamp',
         F.from_utc_timestamp((F.col('window_start') / 1e9).cast('timestamp'), 'America/New_York')
@@ -23,7 +23,7 @@ def add_timestamp(df: DataFrame) -> DataFrame:
 
 
 def add_market_session(df: DataFrame) -> DataFrame:
-    """Classify each bar as premarket, market, postmarket, or closed."""
+    '''Classify each bar as premarket, market, postmarket, or closed.'''
     time_minutes = F.hour('timestamp') * 60 + F.minute('timestamp')
     return df.withColumn(
         'session',
@@ -35,7 +35,7 @@ def add_market_session(df: DataFrame) -> DataFrame:
 
 
 def add_rolling_metrics(df: DataFrame) -> DataFrame:
-    """Add 15-minute rolling window metrics (within same ticker + date)."""
+    '''Add 15-minute rolling window metrics (within same ticker + date).'''
     win_15 = rolling_window(['ticker', 'date'], 'timestamp', 14)  # current + 14 prior = 15 bars
 
     return (

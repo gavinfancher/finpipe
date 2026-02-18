@@ -1,1 +1,1 @@
-"""finpy-dagster: Data pipelines for the finpy lakehouse."""
+'''finpy-dagster: Data pipelines for the finpy lakehouse.'''

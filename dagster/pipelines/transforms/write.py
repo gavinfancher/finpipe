@@ -1,4 +1,4 @@
-"""Shared Iceberg write logic."""
+'''Shared Iceberg write logic.'''
 
 from pyspark.sql import DataFrame, SparkSession
 
@@ -10,7 +10,7 @@ def write_to_iceberg(
     overwrite: bool = False,
     partition_col: str = 'date',
 ) -> None:
-    """Write a DataFrame to an Iceberg table (create, append, or overwrite)."""
+    '''Write a DataFrame to an Iceberg table (create, append, or overwrite).'''
     if not session.catalog.tableExists(table):
         (
             df.writeTo(table)

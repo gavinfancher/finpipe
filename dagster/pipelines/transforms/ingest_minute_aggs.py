@@ -1,4 +1,4 @@
-"""Bronze ingestion: read CSVs from Massive S3 and write to Iceberg."""
+'''Bronze ingestion: read CSVs from Massive S3 and write to Iceberg.'''
 
 from pathlib import Path
 from typing import Callable
@@ -17,7 +17,7 @@ def ingest_minute_agg_file(
     log: Callable[[str], None],
     overwrite: bool = False,
 ) -> int:
-    """Ingest a single minute agg CSV into bronze."""
+    '''Ingest a single minute agg CSV into bronze.'''
     filename = Path(file_key).name
     date_str = filename.replace('.csv.gz', '')
 
@@ -41,7 +41,7 @@ def ingest_minute_agg_batch(
     log: Callable[[str], None],
     overwrite: bool = False,
 ) -> None:
-    """Ingest multiple minute agg CSVs at once via Spark (parallel read)."""
+    '''Ingest multiple minute agg CSVs at once via Spark (parallel read).'''
     df = (
         session.read
         .option('header', 'true')

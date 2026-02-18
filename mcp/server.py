@@ -66,9 +66,9 @@ async def call_tool(name: str, arguments: dict):
     end_str = end.format('YYYY-MM-DD')
 
     sql = (
-        f"select * from minute_aggs "
+        f'select * from minute_aggs '
         f"where ticker = '{ticker}' and date >= '{start_str}' and date <= '{end_str}' "
-        f"order by window_start"
+        f'order by window_start'
     )
     table = query_to_arrow(sql)
 

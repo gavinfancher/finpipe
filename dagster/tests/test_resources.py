@@ -1,4 +1,4 @@
-"""Tests for resource connectivity and env var loading."""
+'''Tests for resource connectivity and env var loading.'''
 
 import os
 
@@ -72,7 +72,7 @@ def test_minio_env_vars_loaded():
 
 @needs_massive
 def test_massive_s3_connects():
-    """Verify we can reach Massive S3 and list a known prefix."""
+    '''Verify we can reach Massive S3 and list a known prefix.'''
     resources = get_configured_resources()
     massive = resources['massive_s3']
     client = massive.get_client()
@@ -87,7 +87,7 @@ def test_massive_s3_connects():
 
 @needs_minio
 def test_minio_connects():
-    """Verify we can reach MinIO."""
+    '''Verify we can reach MinIO.'''
     resources = get_configured_resources()
     minio = resources['minio']
     client = minio.get_client()
@@ -97,7 +97,7 @@ def test_minio_connects():
 
 
 def test_spark_connects():
-    """Verify we can reach Spark Connect."""
+    '''Verify we can reach Spark Connect.'''
     resources = get_configured_resources()
     spark = resources['spark']
     session = spark.get_session()
