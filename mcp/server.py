@@ -34,10 +34,16 @@ TOOLS = [
                     'description': 'Days back from today (default: 3)',
                     'default': 5
                 },
-                'format': {'type': 'string',
-                'enum': ['parquet', 'csv'],
-                'description': 'Output format (default: parquet)',
-                'default': 'parquet'
+                'session': {
+                    'type': 'string',
+                    'enum': ['premarket', 'market', 'postmarket'],
+                    'description': 'Market session filter (e.g. premarket, market, postmarket)',
+                },
+                'format': {
+                    'type': 'string',
+                    'enum': ['parquet', 'csv'],
+                    'description': 'Output format (default: parquet)',
+                    'default': 'parquet',
                 },
             },
             'required': ['ticker'],
@@ -58,6 +64,7 @@ async def call_tool(name: str, arguments: dict):
 
     ticker = arguments['ticker'].upper()
     days_back = arguments.get('days_back', 3)
+    session = arguments.get('session')
     fmt = arguments.get('format', 'parquet')
 
     end = pendulum.today()
@@ -65,17 +72,18 @@ async def call_tool(name: str, arguments: dict):
     start_str = start.format('YYYY-MM-DD')
     end_str = end.format('YYYY-MM-DD')
 
-    sql = (
-        f'select * from minute_aggs '
-        f"where ticker = '{ticker}' and date >= '{start_str}' and date <= '{end_str}' "
-        f'order by window_start'
-    )
+    where = f"where ticker = '{ticker}' and date >= '{start_str}' and date <= '{end_str}'"
+    if session:
+        where += f" and session = '{session}'"
+
+    sql = f'select * from minute_aggs {where} order by window_start'
     table = query_to_arrow(sql)
 
     if table.num_rows == 0:
         return text(f'No data found for {ticker} in the last {days_back} days.')
 
-    filename = f'{ticker.lower()}_{start_str}_to_{end_str}'
+    session_suffix = f'_{session}' if session else ''
+    filename = f'{ticker.lower()}_{start_str}_to_{end_str}{session_suffix}'
     if fmt == 'csv':
         filepath = to_csv(table, OUTPUT_DIR / f'{filename}.csv')
     else:
@@ -84,6 +92,7 @@ async def call_tool(name: str, arguments: dict):
     return text({
         'status': 'success',
         'ticker': ticker,
+        'session': session or 'all',
         'date_range': f'{start_str} to {end_str}',
         'rows': table.num_rows,
         'format': fmt,

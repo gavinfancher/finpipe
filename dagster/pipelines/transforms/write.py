@@ -4,22 +4,20 @@ from pyspark.sql import DataFrame, SparkSession
 
 
 def write_to_iceberg(
-    session: SparkSession,
+    spark_session: SparkSession,
     df: DataFrame,
     table: str,
     overwrite: bool = False,
-    partition_col: str = 'date',
 ) -> None:
-    '''Write a DataFrame to an Iceberg table (create, append, or overwrite).'''
-    if not session.catalog.tableExists(table):
-        (
-            df.writeTo(table)
-            .tableProperty('write.format.default', 'parquet')
-            .tableProperty('write.parquet.compression-codec', 'zstd')
-            .partitionedBy(partition_col)
-            .create()
+    '''
+    write dataframe to iceberg table -- append or overwrite
+    '''
+    if not spark_session.catalog.tableExists(table):
+        raise RuntimeError(
+            f"table '{table}' does not exist — run the warehouse setup before ingesting data"
         )
-    elif overwrite:
+
+    if overwrite:
         df.writeTo(table).overwritePartitions()
     else:
         df.writeTo(table).append()
