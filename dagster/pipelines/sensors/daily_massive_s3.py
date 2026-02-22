@@ -12,7 +12,7 @@ from dagster import (
 
 from ..resources import MassiveS3Resource
 from ..jobs import daily_elt_job
-from ..assets.bronze_minute_aggs import MinuteAggsConfig
+from ..assets.equity_bronze_minute_aggs import MinuteAggsConfig
 
 PREFIX = 'us_stocks_sip/minute_aggs_v1'
 
@@ -76,7 +76,7 @@ def daily_massive_s3_sensor(
             RunRequest(
                 run_key=f'minute-aggs-{next_file}',
                 run_config=RunConfig(
-                    ops={'bronze_minute_aggs': MinuteAggsConfig(file_key=next_file)}
+                    ops={'equity_bronze_minute_aggs': MinuteAggsConfig(file_key=next_file)}
                 ),
                 tags={'file': next_file},
             )

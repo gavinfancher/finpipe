@@ -5,7 +5,7 @@ from ..resources import SparkConnectResource
 from ..transforms.enrich_minute_aggs import add_market_session, add_rolling_metrics, add_timestamp
 from ..transforms.write import write_to_iceberg
 
-TABLE = 'iceberg.silver.minute_aggs'
+TABLE = 'iceberg.equity_silver.minute_aggs'
 
 
 class SilverConfig(Config):
@@ -26,7 +26,7 @@ def build_silver_for_ticker(
     context.log.info(f'Building silver for {ticker} on {date}')
 
     df = (
-        session.table('iceberg.bronze.minute_aggs')
+        session.table('iceberg.equity_bronze.minute_aggs')
         .filter(F.col('ticker') == ticker)
         .filter(F.col('date') == date)
     )

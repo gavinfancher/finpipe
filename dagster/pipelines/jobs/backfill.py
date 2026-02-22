@@ -6,7 +6,7 @@ from ..transforms.ingest_minute_aggs import ingest_minute_agg_batch, ingest_minu
 
 daily_elt_job = define_asset_job(
     name='daily_elt_job',
-    selection=[AssetKey('bronze_minute_aggs'), AssetKey('silver_minute_aggs')],
+    selection=[AssetKey('equity_bronze_minute_aggs'), AssetKey('equity_silver_minute_aggs')],
 )
 
 
