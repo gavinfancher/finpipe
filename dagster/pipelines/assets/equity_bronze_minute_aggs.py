@@ -5,7 +5,7 @@ from dagster import AssetExecutionContext, Config, MaterializeResult, MetadataVa
 from ..resources import SparkConnectResource
 from ..transforms.ingest_minute_aggs import ingest_minute_agg_file
 
-TABLE = 'iceberg.equity_bronze.minute_aggs'
+TARGET_TABLE = 'iceberg.equity_bronze.minute_aggs'
 
 
 class MinuteAggsConfig(Config):
@@ -31,7 +31,7 @@ def equity_bronze_minute_aggs(
         spark_session=session,
         file_key=file_key,
         log=context.log.info,
-        table=TABLE,
+        table=TARGET_TABLE,
         overwrite=config.overwrite,
     )
 
@@ -43,6 +43,6 @@ def equity_bronze_minute_aggs(
             'row_count': MetadataValue.int(int(row_count)),
             'date': MetadataValue.text(date_str),
             'source_file': MetadataValue.text(file_key),
-            'table': MetadataValue.text(TABLE),
+            'table': MetadataValue.text(TARGET_TABLE),
         }
     )
