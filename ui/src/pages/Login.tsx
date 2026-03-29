@@ -2,7 +2,9 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { setCurrentUsername, setToken } from "../store/userStore";
 import Logo from "../components/Logo";
+import BackendDown from "../components/BackendDown";
 import { API_BASE } from "../config";
+import { useBackendStatus } from "../hooks/useBackendStatus";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -10,6 +12,9 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
+  const backend = useBackendStatus();
+
+  if (backend === "down") return <BackendDown />;
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -18,7 +23,7 @@ export default function Login() {
 
     setLoading(true);
     try {
-      const res = await fetch(`${API}/external/auth/login`, {
+      const res = await fetch(`${API_BASE}/external/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: username.trim().toLowerCase(), password }),

@@ -2,8 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import NavBar from "../components/NavBar";
 import { getCurrentUsername, getToken } from "../store/userStore";
-
-const API = `http://${window.location.hostname}:8080`;
+import { API_BASE } from "../config";
 
 export default function Account() {
   const navigate = useNavigate();
@@ -25,7 +24,7 @@ export default function Account() {
   async function generateApiKey() {
     setApiKeyLoading(true);
     try {
-      const res = await fetch(`${API}/external/api-key`, { method: "POST", headers: authHeader });
+      const res = await fetch(`${API_BASE}/external/api-key`, { method: "POST", headers: authHeader });
       const data = await res.json();
       setApiKey(data.api_key ?? null);
     } finally { setApiKeyLoading(false); }

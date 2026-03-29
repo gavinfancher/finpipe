@@ -7,6 +7,7 @@ import { getToken } from "../store/userStore";
 import TickerRow, { type WLColKey } from "../components/TickerRow";
 import PositionsTab from "../components/PositionsTab";
 import NavBar from "../components/NavBar";
+import { API_BASE, WS_BASE } from "../config";
 
 interface WLCol { key: WLColKey; label: string; visible: boolean; sortable: boolean; }
 
@@ -50,7 +51,6 @@ const STATUS_DOT: Record<string, string> = {
   disconnected: "dot--red",
 };
 
-const API = `http://${window.location.hostname}:8080`;
 
 export default function FaucetDashboard() {
   const navigate = useNavigate();
@@ -81,7 +81,7 @@ export default function FaucetDashboard() {
   const [wlDragOverKey, setWLDragOverKey] = useState<WLColKey | null>(null);
 
   const fetchUserTickers = useCallback(async () => {
-    const res = await fetch(`${API}/external/tickers/list`, { headers: authHeader });
+    const res = await fetch(`${API_BASE}/external/tickers/list`, { headers: authHeader });
     const data = await res.json();
     setUserTickers(data.tickers ?? []);
   }, [token]);
@@ -119,7 +119,7 @@ export default function FaucetDashboard() {
     if (!ticker) return;
     if (!/^[A-Z]{1,5}$/.test(ticker)) { showFeedbackMsg(`"${ticker}" invalid ticker`, false); return; }
     if (userTickers.includes(ticker)) { showFeedbackMsg(`${ticker} already subscribed`, false); setSearchQuery(""); return; }
-    await fetch(`${API}/external/tickers/${ticker}`, { method: "POST", headers: authHeader });
+    await fetch(`${API_BASE}/external/tickers/${ticker}`, { method: "POST", headers: authHeader });
     await fetchUserTickers();
     showFeedbackMsg(`${ticker} added`, true);
     setSearchQuery("");
@@ -279,7 +279,7 @@ export default function FaucetDashboard() {
                     prevPrice={prevPrices.current[ticker]}
                     visibleCols={visibleWLCols.map((c) => c.key)}
                     onRemove={async () => {
-                      await fetch(`${API}/external/tickers/${ticker}`, { method: "DELETE", headers: authHeader });
+                      await fetch(`${API_BASE}/external/tickers/${ticker}`, { method: "DELETE", headers: authHeader });
                       await fetchUserTickers();
                     }}
                   />
@@ -310,7 +310,7 @@ export default function FaucetDashboard() {
         <span className={`status-dot ${STATUS_DOT[status]}`} />
         <span className="statusbar-label">{STATUS_LABEL[status].toLowerCase()}</span>
         <span className="statusbar-sep">·</span>
-        <span className="statusbar-label">ws://{window.location.hostname}:8080</span>
+        <span className="statusbar-label">{WS_BASE}</span>
         {market.session !== "market open" && (
           <>
             <span className="statusbar-sep">·</span>

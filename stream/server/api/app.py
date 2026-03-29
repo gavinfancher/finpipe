@@ -61,3 +61,8 @@ app.include_router(ws.router)
 app.include_router(internal.router, prefix="/internal")
 
 Instrumentator().instrument(app).expose(app, endpoint="/metrics")
+
+
+@app.get("/external/health")
+async def health():
+    return {"status": "ok"}

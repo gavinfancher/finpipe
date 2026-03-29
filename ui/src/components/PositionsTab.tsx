@@ -41,7 +41,7 @@ function loadCols(): ColDef[] {
   return DEFAULT_COLS;
 }
 
-const API = `http://${window.location.hostname}:8080`;
+import { API_BASE } from "../config";
 
 const fmt = (n: number, decimals = 2) =>
   n.toLocaleString("en-US", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -118,7 +118,7 @@ export default function PositionsTab({ token, ticks }: Props) {
   }
 
   const fetchPositions = useCallback(async () => {
-    const res = await fetch(`${API}/external/positions`, { headers: authHeader });
+    const res = await fetch(`${API_BASE}/external/positions`, { headers: authHeader });
     const data = await res.json();
     setPositions(Array.isArray(data) ? data : []);
   }, [token]);
@@ -188,7 +188,7 @@ export default function PositionsTab({ token, ticks }: Props) {
     if (isNaN(shares) || shares <= 0 || isNaN(total_cost) || total_cost <= 0) return;
     setEditSaving(true);
     try {
-      await fetch(`${API}/external/positions/${editModal.id}`, {
+      await fetch(`${API_BASE}/external/positions/${editModal.id}`, {
         method: "PATCH", headers: authHeader,
         body: JSON.stringify({ shares, cost_basis: total_cost / shares }),
       });
@@ -205,7 +205,7 @@ export default function PositionsTab({ token, ticks }: Props) {
     if (isNaN(total_cost) || total_cost <= 0) { setFormError("total cost must be > 0"); return; }
     setSubmitting(true); setFormError(null);
     try {
-      const res = await fetch(`${API}/external/positions`, {
+      const res = await fetch(`${API_BASE}/external/positions`, {
         method: "POST", headers: authHeader,
         body: JSON.stringify({ ticker, shares, cost_basis: total_cost / shares }),
       });
@@ -217,7 +217,7 @@ export default function PositionsTab({ token, ticks }: Props) {
   }
   async function handleRemove(id: number) {
     setDropdownId(null); setDropdownPos(null);
-    await fetch(`${API}/external/positions/${id}`, { method: "DELETE", headers: authHeader });
+    await fetch(`${API_BASE}/external/positions/${id}`, { method: "DELETE", headers: authHeader });
     await fetchPositions();
   }
 

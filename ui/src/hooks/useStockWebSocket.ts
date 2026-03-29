@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 import type { StockTick, ServerMessage } from "../types";
+import { WS_BASE } from "../config";
 
 const RECONNECT_DELAY_MS = 3000;
 
@@ -17,7 +18,7 @@ export function useStockWebSocket(token: string) {
     if (unmounted.current) return;
     setStatus("connecting");
 
-    const ws = new WebSocket(`ws://${window.location.hostname}:8080/ws?token=${token}`);
+    const ws = new WebSocket(`${WS_BASE}/ws?token=${token}`);
     wsRef.current = ws;
 
     ws.onopen = () => {
