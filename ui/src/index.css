@@ -1247,6 +1247,114 @@ input[type="password"] { letter-spacing: 0.2em; font-size: 16px; }
 }
 .col-config-btn:hover { opacity: 0.82; }
 
+/* ── Dashboard page ── */
+.dash-page {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background: var(--bg);
+}
+
+.dash-content {
+  flex: 1;
+  overflow: auto;
+  padding: 32px 24px;
+  max-width: 720px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.dash-header {
+  margin-bottom: 24px;
+}
+
+.dash-header__greeting {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.3px;
+}
+
+.dash-header__user {
+  color: var(--accent);
+}
+
+.dash-header__sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+.dash-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 12px;
+}
+
+.dash-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 20px;
+  text-decoration: none;
+  color: inherit;
+  transition: border-color 0.15s;
+}
+
+.dash-card:hover {
+  border-color: var(--text-muted);
+}
+
+.dash-card__top {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dash-card__icon {
+  font-size: 16px;
+  color: var(--text-muted);
+}
+
+.dash-card__icon-svg {
+  flex-shrink: 0;
+}
+
+.dash-card__name {
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.dash-card__desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.dash-card__footer {
+  display: flex;
+  gap: 6px;
+  margin-top: auto;
+}
+
+.dash-card__tag {
+  font-size: 10px;
+  color: var(--text-muted);
+  background: var(--bg-hover);
+  padding: 2px 8px;
+  border-radius: 3px;
+  letter-spacing: 0.03em;
+}
+
+@media (max-width: 640px) {
+  .dash-content { padding: 20px 12px; }
+  .dash-grid { grid-template-columns: 1fr; }
+}
+
 /* ── Account page ── */
 .account-sections {
   display: flex;

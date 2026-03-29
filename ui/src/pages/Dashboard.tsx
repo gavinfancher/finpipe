@@ -39,9 +39,7 @@ export default function Dashboard() {
               <span className="dash-card__tag">websocket</span>
             </div>
           </Link>
-        </div>
 
-        <div className="dash-grid" style={{ marginTop: "16px" }}>
           <Link to="/account" className="dash-card">
             <div className="dash-card__top">
               <span className="dash-card__icon">@</span>
