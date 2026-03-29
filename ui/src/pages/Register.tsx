@@ -1,0 +1,135 @@
+import { useState, type FormEvent } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { setCurrentUsername, setToken } from "../store/userStore";
+import Logo from "../components/Logo";
+
+const API = `http://${window.location.hostname}:8080`;
+
+export default function Register() {
+  const navigate = useNavigate();
+  const [betaKey, setBetaKey] = useState("");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError("");
+
+    if (!betaKey.trim()) {
+      setError("beta key is required.");
+      return;
+    }
+    if (!/^[a-zA-Z0-9_-]{1,32}$/.test(username)) {
+      setError("only letters, numbers, underscores, and hyphens (max 32 chars).");
+      return;
+    }
+    if (password.length < 6) {
+      setError("password must be at least 6 characters.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("passwords do not match.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/external/auth/register`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: username.trim().toLowerCase(),
+          password,
+          beta_key: betaKey.trim(),
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail ?? "something went wrong.");
+        return;
+      }
+      setCurrentUsername(username.trim().toLowerCase());
+      setToken(data.access_token);
+      navigate("/dashboard");
+    } catch {
+      setError("could not reach server.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-logo">
+          <Logo />
+          <span className="logo-text">finpipe</span>
+        </div>
+        <p className="login-subtitle">request access &middot; beta key required</p>
+
+        <form onSubmit={handleSubmit} className="login-form">
+          <label htmlFor="betakey" className="field-label">beta key</label>
+          <input
+            id="betakey"
+            type="text"
+            className="text-input"
+            placeholder="enter your beta key"
+            value={betaKey}
+            onChange={(e) => { setBetaKey(e.target.value); setError(""); }}
+            autoFocus
+            autoComplete="off"
+          />
+
+          <label htmlFor="username" className="field-label">username</label>
+          <input
+            id="username"
+            type="text"
+            className="text-input"
+            placeholder="e.g. trader_joe"
+            value={username}
+            onChange={(e) => { setUsername(e.target.value); setError(""); }}
+            autoComplete="off"
+          />
+
+          <label htmlFor="password" className="field-label">password</label>
+          <input
+            id="password"
+            type="password"
+            className="text-input"
+            placeholder="••••••••"
+            value={password}
+            onChange={(e) => { setPassword(e.target.value); setError(""); }}
+            autoComplete="off"
+          />
+
+          <label htmlFor="confirm" className="field-label">confirm password</label>
+          <input
+            id="confirm"
+            type="password"
+            className="text-input"
+            placeholder="••••••••"
+            value={confirm}
+            onChange={(e) => { setConfirm(e.target.value); setError(""); }}
+            autoComplete="off"
+          />
+
+          {error && <p className="field-error">{error}</p>}
+
+          <button type="submit" className="btn-primary" disabled={loading}>
+            {loading ? "..." : "create account"}
+          </button>
+        </form>
+
+        <p className="login-back">
+          already have an account? <Link to="/login">sign in</Link>
+        </p>
+        <p className="login-back">
+          <Link to="/">back to home</Link>
+        </p>
+      </div>
+    </div>
+  );
+}

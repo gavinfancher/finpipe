@@ -1,22 +1,32 @@
+# environments
+.env
+.venv/
+__pycache__/
 
+# keys and secrets
+*.pem
+*.key
+*-key
+*-key.pub
 
-
-# ignore all environment files
-*.env
-
-# ignore lakehouse config files to ignore becuase they have secrets
-lakehouse/trino/catalog/iceberg.properties
-
-# ignore the lakehouse data directory but keep README
-lakehouse/data/*
-!lakehouse/data/README.md
-
-
-# ignore other local cache files
-*__pycache__*
-
-# ignore venv's
-*.venv
-
-# ignore other files
+# os
 .DS_Store
+
+# python
+*.pyc
+*.egg-info/
+
+# node
+node_modules/
+dist/
+
+# ide
+.idea/
+.vscode/
+
+# uv
+.python-version
+
+# dagster
+/dagster/storage/
+/dagster/logs/
