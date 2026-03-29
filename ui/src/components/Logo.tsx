@@ -3,7 +3,7 @@ interface Props {
 }
 
 const COLORS = {
-  default: "#6ec8e8",
+  default: "#ff9e18",
   faucet: "#6ee86e",
   ice: "#8bb8e8",
   analyst: "#e8c86e",
@@ -21,7 +21,7 @@ const LABELS = {
 export default function Logo({ variant = "default" }: Props) {
   return (
     <svg width="28" height="28" viewBox="0 0 28 28" xmlns="http://www.w3.org/2000/svg" style={{ flexShrink: 0 }}>
-      <rect width="28" height="28" rx="5" fill="#383838"/>
+      <rect width="28" height="28" rx="5" fill="#141414" stroke="#2a2a2a" strokeWidth="1"/>
       <text
         x="14" y="19"
         textAnchor="middle"

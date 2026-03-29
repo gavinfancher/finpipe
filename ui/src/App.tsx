@@ -8,11 +8,16 @@ import Icehouse from "./pages/Icehouse";
 import Analyst from "./pages/Analyst";
 import Undercurrent from "./pages/Undercurrent";
 import Weather from "./pages/Weather";
+import Learn from "./pages/Learn";
+import Blog from "./pages/Blog";
 
 export default function App() {
   return (
     <Routes>
       <Route path="/" element={<Home />} />
+      <Route path="/learn" element={<Learn />} />
+      <Route path="/blog" element={<Blog />} />
+      <Route path="/blog/:slug" element={<Blog />} />
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
       <Route path="/dashboard" element={<Dashboard />} />

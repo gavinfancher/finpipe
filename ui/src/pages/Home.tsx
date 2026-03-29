@@ -11,66 +11,62 @@ export default function Home() {
       <div className="home-hero">
         <h1 className="home-hero__title">finpipe</h1>
         <p className="home-hero__sub">
-          an end-to-end market data platform. ingest, process, and stream
+          an end-to-end financial data platform. ingest, process, and stream
           real-time and historical equity data through a modern lakehouse
           architecture.
         </p>
 
-        <div className="home-hero__actions">
-          {user ? (
-            <Link to="/dashboard" className="btn-primary">open dashboard</Link>
-          ) : (
-            <>
-              <Link to="/login" className="btn-primary">sign in</Link>
-              <Link to="/register" className="btn-ghost">request access</Link>
-            </>
-          )}
+        <div className="home-sections">
+          <div className="home-section">
+            <h2 className="home-section__title">batch ingestion</h2>
+            <p className="home-section__desc">
+              historical equity and options data from the massive api. concurrent
+              workers on ec2 spot instances stream through pyarrow, stage as
+              parquet on s3, and commit to iceberg tables via emr serverless.
+            </p>
+          </div>
+          <div className="home-section">
+            <h2 className="home-section__title">real-time streaming</h2>
+            <p className="home-section__desc">
+              live tick data from massive websocket feeds. enriched with
+              historical reference prices across multiple timeframes and
+              broadcast to connected clients over websocket.
+            </p>
+          </div>
+          <div className="home-section">
+            <h2 className="home-section__title">orchestration</h2>
+            <p className="home-section__desc">
+              dagster manages pipeline execution — sensors watch for new data,
+              jobs handle backfills, and the platform provisions and tears down
+              cloud resources automatically.
+            </p>
+          </div>
         </div>
 
-        <div className="home-products">
-          <Link to="/faucet" className="product-card">
-            <span className="product-card__icon">~</span>
-            <span className="product-card__name product-card__name--faucet">finpipe faucet</span>
-            <span className="product-card__desc">
-              real-time equity price streaming. watchlists, position tracking,
-              and live p/l — powered by websocket feeds from the massive api.
-            </span>
+        <div className="home-links">
+          <Link to="/learn" className="home-link-card">
+            <h3 className="home-link-card__title">learn more</h3>
+            <p className="home-link-card__desc">
+              how the platform works — ingestion, lakehouse, streaming, and the full stack.
+            </p>
           </Link>
-          <Link to="/icehouse" className="product-card">
-            <span className="product-card__icon">*</span>
-            <span className="product-card__name product-card__name--ice">finpipe icehouse</span>
-            <span className="product-card__desc">
-              historical market data lakehouse. minute-level aggregates ingested
-              through dagster, processed via spark, stored in apache iceberg tables.
-            </span>
-          </Link>
-          <Link to="/analyst" className="product-card">
-            <span className="product-card__icon">&gt;_</span>
-            <span className="product-card__name product-card__name--analyst">finpipe analyst</span>
-            <span className="product-card__desc">
-              ai analyst powered by claude, openai, or gemini. query your icehouse
-              data with natural language — no sql required.
-            </span>
-          </Link>
-          <Link to="/weather" className="product-card">
-            <span className="product-card__icon">~</span>
-            <span className="product-card__name product-card__name--weather">finpipe weather</span>
-            <span className="product-card__desc">
-              real-time US weather data powered by the national weather service.
-              ask about forecasts, alerts, and conditions with structured MCP tool calls.
-            </span>
-          </Link>
-          <Link to="/undercurrent" className="product-card">
-            <span className="product-card__icon">%</span>
-            <span className="product-card__name product-card__name--undercurrent">finpipe undercurrent</span>
-            <span className="product-card__desc">
-              ml signals and backtesting. build strategies, test against history,
-              and monitor live signals in real-time.
-            </span>
+          <Link to="/blog" className="home-link-card">
+            <h3 className="home-link-card__title">blog</h3>
+            <p className="home-link-card__desc">
+              engineering decisions and architectural trade-offs behind finpipe.
+            </p>
           </Link>
         </div>
+
+        {user && (
+          <div className="home-hero__actions">
+            <Link to="/dashboard" className="btn-primary">open dashboard</Link>
+          </div>
+        )}
       </div>
-      <footer className="home-footer">finpipe &middot; built with dagster, spark, iceberg, and too much caffeine</footer>
+      <footer className="home-footer">
+        finpipe&trade; &middot; built with ❤️ by <a href="https://gavinfancher.com" target="_blank" rel="noopener noreferrer">gavin</a> and too much caffeine
+      </footer>
     </div>
   );
 }
