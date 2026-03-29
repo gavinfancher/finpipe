@@ -25,7 +25,7 @@ export default function NavBar() {
       <div className="site-nav__right">
         {user ? (
           <>
-            <span className="username-badge">{user}</span>
+            <Link to="/dashboard" className="btn-primary btn-primary--sm">dashboard</Link>
             <button className="btn-ghost btn-ghost--sm" onClick={handleLogout}>sign out</button>
           </>
         ) : (

@@ -7,7 +7,6 @@ const API = `http://${window.location.hostname}:8080`;
 
 export default function Register() {
   const navigate = useNavigate();
-  const [betaKey, setBetaKey] = useState("");
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -18,10 +17,6 @@ export default function Register() {
     e.preventDefault();
     setError("");
 
-    if (!betaKey.trim()) {
-      setError("beta key is required.");
-      return;
-    }
     if (!/^[a-zA-Z0-9_-]{1,32}$/.test(username)) {
       setError("only letters, numbers, underscores, and hyphens (max 32 chars).");
       return;
@@ -43,7 +38,6 @@ export default function Register() {
         body: JSON.stringify({
           username: username.trim().toLowerCase(),
           password,
-          beta_key: betaKey.trim(),
         }),
       });
       const data = await res.json();
@@ -68,21 +62,9 @@ export default function Register() {
           <Logo />
           <span className="logo-text">finpipe</span>
         </div>
-        <p className="login-subtitle">request access &middot; beta key required</p>
+        <p className="login-subtitle">create an account</p>
 
         <form onSubmit={handleSubmit} className="login-form">
-          <label htmlFor="betakey" className="field-label">beta key</label>
-          <input
-            id="betakey"
-            type="text"
-            className="text-input"
-            placeholder="enter your beta key"
-            value={betaKey}
-            onChange={(e) => { setBetaKey(e.target.value); setError(""); }}
-            autoFocus
-            autoComplete="off"
-          />
-
           <label htmlFor="username" className="field-label">username</label>
           <input
             id="username"
@@ -91,6 +73,7 @@ export default function Register() {
             placeholder="e.g. trader_joe"
             value={username}
             onChange={(e) => { setUsername(e.target.value); setError(""); }}
+            autoFocus
             autoComplete="off"
           />
 

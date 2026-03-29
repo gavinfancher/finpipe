@@ -25,15 +25,23 @@ async def lifespan(app: FastAPI):
     await db.init()
     startup_tickers = await db.get_all_tickers()
     logger.info("startup: loaded %d tickers from db", len(startup_tickers))
-    if startup_tickers:
-        await load_prev_closes(startup_tickers)
-    task = asyncio.create_task(relay.run(startup_tickers))
-    yield
-    task.cancel()
+
+    relay_task = None
     try:
-        await task
-    except (asyncio.CancelledError, Exception):
-        pass
+        if startup_tickers:
+            await load_prev_closes(startup_tickers)
+        relay_task = asyncio.create_task(relay.run(startup_tickers))
+    except Exception as e:
+        logger.warning("skipping relay/enrichment: %s", e)
+
+    yield
+
+    if relay_task:
+        relay_task.cancel()
+        try:
+            await relay_task
+        except (asyncio.CancelledError, Exception):
+            pass
     await db.close()
 
 

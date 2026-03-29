@@ -79,10 +79,6 @@ export default function FaucetDashboard() {
   const wlColBtnRef = useRef<HTMLButtonElement>(null);
   const [wlDragKey, setWLDragKey] = useState<WLColKey | null>(null);
   const [wlDragOverKey, setWLDragOverKey] = useState<WLColKey | null>(null);
-  const [showApiKey, setShowApiKey] = useState(false);
-  const [apiKey, setApiKey] = useState<string | null>(null);
-  const [apiKeyLoading, setApiKeyLoading] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const fetchUserTickers = useCallback(async () => {
     const res = await fetch(`${API}/external/tickers/list`, { headers: authHeader });
@@ -96,27 +92,6 @@ export default function FaucetDashboard() {
     return () => clearInterval(id);
   }, [fetchUserTickers]);
 
-  async function generateApiKey() {
-    setApiKeyLoading(true);
-    try {
-      const res = await fetch(`${API}/external/api-key`, { method: "POST", headers: authHeader });
-      const data = await res.json();
-      setApiKey(data.api_key ?? null);
-    } finally { setApiKeyLoading(false); }
-  }
-
-  function copyKey() {
-    if (!apiKey) return;
-    navigator.clipboard.writeText(apiKey);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  }
-
-  function openApiKeyModal() {
-    setApiKey(null);
-    setCopied(false);
-    setShowApiKey(true);
-  }
 
   useEffect(() => {
     function onKeyDown(e: globalThis.KeyboardEvent) {
@@ -228,8 +203,8 @@ export default function FaucetDashboard() {
     <div className="dashboard faucet-scope">
       <NavBar />
 
-      {/* Faucet sub-toolbar */}
       <div className="faucet-toolbar">
+        <span className="stream-label">stream</span>
         <div className="faucet-toolbar__search">
           <div className="search-wrap">
             <span className="search-slash">/</span>
@@ -254,37 +229,8 @@ export default function FaucetDashboard() {
         <div className="faucet-toolbar__right">
           <span className={`status-dot ${market.dotClass}`} />
           <span className="status-label">{market.label}</span>
-          <button className="btn-ghost btn-ghost--sm" onClick={openApiKeyModal}>api key</button>
         </div>
       </div>
-
-      {showApiKey && createPortal(
-        <div className="modal-overlay" onClick={() => setShowApiKey(false)}>
-          <div className="modal" onClick={(e) => e.stopPropagation()} data-1p-ignore>
-            <div className="modal-header">
-              <h2 className="modal-title">api key</h2>
-              <button className="btn-icon" onClick={() => setShowApiKey(false)}>✕</button>
-            </div>
-            <div className="apikey-body">
-              {apiKey ? (
-                <>
-                  <p className="apikey-note">copy your key now — it won't be shown again.</p>
-                  <div className="apikey-display">
-                    <code className="apikey-value">{apiKey}</code>
-                    <button className="btn-ghost btn-ghost--sm" onClick={copyKey}>{copied ? "copied!" : "copy"}</button>
-                  </div>
-                </>
-              ) : (
-                <>
-                  <p className="apikey-note">generate an api key to update your watchlist programmatically. generating a new key invalidates the previous one.</p>
-                  <button className="btn-primary" onClick={generateApiKey} disabled={apiKeyLoading}>{apiKeyLoading ? "generating..." : "generate key"}</button>
-                </>
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
 
       <div className="tab-bar">
         <button className={`tab${activeTab === "watchlist" ? " tab--active" : ""}`} onClick={() => setActiveTab("watchlist")}>watchlist</button>

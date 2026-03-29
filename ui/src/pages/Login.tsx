@@ -2,8 +2,7 @@ import { useState, type FormEvent } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { setCurrentUsername, setToken } from "../store/userStore";
 import Logo from "../components/Logo";
-
-const API = `http://${window.location.hostname}:8080`;
+import { API_BASE } from "../config";
 
 export default function Login() {
   const navigate = useNavigate();

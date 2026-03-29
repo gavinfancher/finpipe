@@ -1,8 +1,7 @@
 import json
 import logging
+import os
 from datetime import datetime, timezone
-
-import logging_loki
 
 
 class _JsonFormatter(logging.Formatter):
@@ -21,27 +20,30 @@ class _JsonFormatter(logging.Formatter):
         return json.dumps(payload)
 
 
-class _LevelLokiHandler(logging_loki.LokiHandler):
-    def build_tags(self, record):
-        return super().build_tags(record)
-
-
 def configure_logging():
-    loki_handler = _LevelLokiHandler(
-        url="http://localhost:3100/loki/api/v1/push",
-        tags={"service": "finpipe-api"},
-        version="1",
-    )
-    loki_handler.setFormatter(_JsonFormatter())
+    handlers: list[logging.Handler] = []
 
     stream_handler = logging.StreamHandler()
     stream_handler.setFormatter(_JsonFormatter())
+    handlers.append(stream_handler)
+
+    # Only add Loki handler if LOKI_URL is set
+    loki_url = os.getenv("LOKI_URL")
+    if loki_url:
+        import logging_loki
+        loki_handler = logging_loki.LokiHandler(
+            url=f"{loki_url}/loki/api/v1/push",
+            tags={"service": "finpipe-api"},
+            version="1",
+        )
+        loki_handler.setFormatter(_JsonFormatter())
+        handlers.append(loki_handler)
 
     root = logging.getLogger()
     root.setLevel(logging.INFO)
-    root.handlers = [loki_handler, stream_handler]
+    root.handlers = handlers
 
     for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
         uv_logger = logging.getLogger(name)
-        uv_logger.handlers = [loki_handler, stream_handler]
+        uv_logger.handlers = handlers
         uv_logger.propagate = False
