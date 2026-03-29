@@ -11,6 +11,7 @@ export default function Register() {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
+  const [betaKey, setBetaKey] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const backend = useBackendStatus();
@@ -42,6 +43,7 @@ export default function Register() {
         body: JSON.stringify({
           username: username.trim().toLowerCase(),
           password,
+          beta_key: betaKey.trim(),
         }),
       });
       const data = await res.json();
@@ -100,6 +102,17 @@ export default function Register() {
             placeholder="••••••••"
             value={confirm}
             onChange={(e) => { setConfirm(e.target.value); setError(""); }}
+            autoComplete="off"
+          />
+
+          <label htmlFor="betaKey" className="field-label">beta key</label>
+          <input
+            id="betaKey"
+            type="text"
+            className="text-input"
+            placeholder="enter beta key"
+            value={betaKey}
+            onChange={(e) => { setBetaKey(e.target.value); setError(""); }}
             autoComplete="off"
           />
 

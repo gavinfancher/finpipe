@@ -19,6 +19,7 @@ dependencies = [
     "websockets>=13.0",
     "python-logging-loki>=0.3.1",
     "pandas-market-calendars>=5.3.1.2",
+    "slowapi>=0.1.9",
 ]
 
 [build-system]
