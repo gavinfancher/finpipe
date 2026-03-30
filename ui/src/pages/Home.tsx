@@ -65,7 +65,7 @@ export default function Home() {
         )}
       </div>
       <footer className="home-footer">
-        finpipe&trade; &middot; built with ❤️ by <a href="https://gavinfancher.com" target="_blank" rel="noopener noreferrer">gavin</a> and too much caffeine
+        finpipe&trade; &middot; built by <a href="https://gavinfancher.com" target="_blank" rel="noopener noreferrer">gavin fancher</a> with too much caffeine
       </footer>
     </div>
   );
