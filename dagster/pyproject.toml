@@ -9,6 +9,10 @@ dependencies = [
     "dagster>=1.9",
     "dagster-webserver>=1.9",
     "pendulum>=3.2.0",
+    "asyncpg>=0.31.0",
+    "massive>=2.3.2",
+    "pandas-market-calendars>=5.3.1.2",
+    "redis>=5.0.0",
 ]
 
 [build-system]

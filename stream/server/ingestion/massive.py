@@ -1,26 +1,35 @@
 """
-Ingestion node: connects to Massive and streams ticks to the relay.
+Ingestion node: connects to Massive WS and produces ticks to Redpanda.
 
-The relay connects via WS /stream and can send subscription commands:
-  {"action": "subscribe",   "ticker": "AAPL"}
-  {"action": "unsubscribe", "ticker": "AAPL"}
+Each node subscribes to its assigned tickers (from Redis, set by control node).
+Ticks are produced to the 'market-ticks' Redpanda/Kafka topic.
 
-Run: uv run uvicorn server.ingestion.massive:app --port 9000
+Run: NODE_ID=ingest-0 uv run python -m server.ingestion.massive
 """
 
 import asyncio
+import json
 import logging
-from contextlib import asynccontextmanager
+import os
 
-from fastapi import FastAPI, WebSocket
-from fastapi.middleware.cors import CORSMiddleware
+import redis.asyncio as aioredis
+from aiokafka import AIOKafkaProducer
 from massive import WebSocketClient
 from massive.websocket.models import EquityAgg, Feed, Market
 
-from server.config import MASSIVE_API_KEY
+logging.basicConfig(
+    level=logging.INFO,
+    format='{"timestamp":"%(asctime)s","level":"%(levelname)s","logger":"%(name)s","message":"%(message)s"}',
+)
+logger = logging.getLogger("ingestion")
 
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+MASSIVE_API_KEY = os.environ.get("MASSIVE_API_KEY", "")
+KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092")
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
+NODE_ID = os.environ.get("NODE_ID", "ingest-0")
+TOPIC = "market-ticks"
+CHANNEL = "control:assignments"
+ASSIGNMENTS_KEY = "ticker:assignments"
 
 client = WebSocketClient(
     api_key=MASSIVE_API_KEY,
@@ -28,31 +37,20 @@ client = WebSocketClient(
     market=Market.Stocks,
 )
 
-ticks: dict = {}
-subscriptions: set[str] = set()
-relays: set[WebSocket] = set()
-
-DEFAULT_TICKERS = ["A.SPY"]
+producer: AIOKafkaProducer | None = None
+current_tickers: set[str] = set()
 
 
 def normalize(ticker: str) -> str:
+    """Ensure ticker has A. prefix for Massive API."""
     ticker = ticker.upper().strip()
     if not ticker.startswith("A."):
         ticker = f"A.{ticker}"
     return ticker
 
 
-async def broadcast(data: dict):
-    dead = set()
-    for ws in relays:
-        try:
-            await ws.send_json(data)
-        except Exception:
-            dead.add(ws)
-    relays.difference_update(dead)
-
-
 async def handle_msg(msgs):
+    """Handle messages from Massive WebSocket — produce to Kafka."""
     for m in msgs:
         if not isinstance(m, EquityAgg):
             continue
@@ -70,12 +68,65 @@ async def handle_msg(msgs):
             "changePct": change_pct,
             "timestamp": m.end_timestamp or 0,
             "volume": m.accumulated_volume or 0,
+            "node": NODE_ID,
         }
-        ticks[display_ticker] = tick
-        await broadcast({"type": "tick", "tick": tick})
+        if producer:
+            await producer.send(
+                TOPIC,
+                key=display_ticker.encode(),
+                value=json.dumps(tick).encode(),
+            )
+
+
+async def apply_assignments(tickers: list[str]):
+    """Update Massive subscriptions to match assigned tickers."""
+    global current_tickers
+    new_set = set(tickers)
+    to_add = new_set - current_tickers
+    to_remove = current_tickers - new_set
+
+    for ticker in to_remove:
+        raw = normalize(ticker)
+        client.unsubscribe(raw)
+        logger.info("unsubscribed: %s", raw)
+
+    for ticker in to_add:
+        raw = normalize(ticker)
+        client.subscribe(raw)
+        logger.info("subscribed: %s", raw)
+
+    current_tickers = new_set
+    logger.info("active tickers: %d", len(current_tickers))
+
+
+async def listen_for_assignments(rdb: aioredis.Redis):
+    """Listen for assignment changes from control node via Redis pub/sub."""
+    pubsub = rdb.pubsub()
+    await pubsub.subscribe(CHANNEL)
+
+    # Load initial assignments from Redis
+    all_assignments = await rdb.hgetall(ASSIGNMENTS_KEY)
+    my_tickers = [
+        k.decode() for k, v in all_assignments.items()
+        if v.decode() == NODE_ID
+    ]
+    if my_tickers:
+        await apply_assignments(my_tickers)
+
+    # Listen for updates
+    async for msg in pubsub.listen():
+        if msg["type"] != "message":
+            continue
+        try:
+            data = json.loads(msg["data"])
+            if data.get("node_id") == NODE_ID:
+                await apply_assignments(data["tickers"])
+        except Exception as e:
+            logger.error("assignment parse error: %s", e)
 
 
 async def run_massive():
+    """Connect to Massive WebSocket with reconnection."""
     while True:
         try:
             logger.info("massive: connecting...")
@@ -87,71 +138,32 @@ async def run_massive():
         await asyncio.sleep(5)
 
 
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    for t in DEFAULT_TICKERS:
-        subscriptions.add(t)
-        client.subscribe(t)
-    task = asyncio.create_task(run_massive())
-    yield
-    await client.close()
-    task.cancel()
+async def run():
+    global producer
+
+    rdb = aioredis.from_url(REDIS_URL, decode_responses=False)
+
+    # Start Kafka producer
+    producer = AIOKafkaProducer(bootstrap_servers=KAFKA_BOOTSTRAP)
+    await producer.start()
+    logger.info("kafka producer connected to %s", KAFKA_BOOTSTRAP)
+
+    # Run Massive connection and assignment listener concurrently
+    massive_task = asyncio.create_task(run_massive())
+    assignment_task = asyncio.create_task(listen_for_assignments(rdb))
+
     try:
-        await task
-    except (asyncio.CancelledError, Exception):
-        pass
-
-
-app = FastAPI(lifespan=lifespan)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-@app.websocket("/stream")
-async def stream_endpoint(ws: WebSocket):
-    await ws.accept()
-    relays.add(ws)
-    logger.info("relay connected, pool=%d", len(relays))
-    try:
-        if ticks:
-            await ws.send_json({"type": "snapshot", "ticks": ticks})
-        display_subs = sorted(s.removeprefix("A.") for s in subscriptions)
-        await ws.send_json({"type": "tickers", "tickers": display_subs})
-        while True:
-            data = await ws.receive_json()
-            action = data.get("action")
-            ticker = data.get("ticker", "")
-            sub = normalize(ticker)
-            if action == "subscribe" and sub not in subscriptions:
-                subscriptions.add(sub)
-                client.subscribe(sub)
-                logger.info("subscribed: %s", sub)
-                display_subs = sorted(s.removeprefix("A.") for s in subscriptions)
-                await broadcast({"type": "tickers", "tickers": display_subs})
-            elif action == "unsubscribe":
-                subscriptions.discard(sub)
-                ticks.pop(ticker.upper(), None)
-                client.unsubscribe(sub)
-                logger.info("unsubscribed: %s", sub)
-                display_subs = sorted(s.removeprefix("A.") for s in subscriptions)
-                await broadcast({"type": "tickers", "tickers": display_subs})
-    except Exception:
+        await asyncio.gather(massive_task, assignment_task)
+    except asyncio.CancelledError:
         pass
     finally:
-        relays.discard(ws)
-        logger.info("relay disconnected, pool=%d", len(relays))
+        massive_task.cancel()
+        assignment_task.cancel()
+        await producer.stop()
+        await rdb.close()
+        await client.close()
 
 
-@app.get("/health")
-def health():
-    return {
-        "status": "ok",
-        "subscriptions": sorted(subscriptions),
-        "tick_count": len(ticks),
-        "relays": len(relays),
-    }
+if __name__ == "__main__":
+    logger.info("starting %s", NODE_ID)
+    asyncio.run(run())

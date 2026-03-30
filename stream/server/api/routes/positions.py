@@ -5,9 +5,6 @@ from pydantic import BaseModel
 
 import server.db as db
 from server.api.deps import get_current_user
-from server.pipeline import state
-from server.pipeline.enrichment import _STATE_MAP, _fetch_closes, _trading_dates
-from server.pipeline.relay import send_to_consumer
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -33,14 +30,7 @@ async def get_positions(current_user: str = Depends(get_current_user)):
 async def add_position(body: PositionCreate, current_user: str = Depends(get_current_user)):
     ticker = body.ticker.upper()
     position = await db.add_position(current_user, ticker, body.shares, body.cost_basis)
-    await send_to_consumer({"action": "subscribe", "ticker": ticker})
-    if ticker not in state.prev_closes:
-        closes = await _fetch_closes(ticker, _trading_dates())
-        if closes["prev"] is not None:
-            state.prev_closes[ticker] = closes["prev"]
-        for period, attr in _STATE_MAP:
-            if closes[period] is not None:
-                getattr(state, attr)[ticker] = closes[period]
+    # Control node will pick up the new ticker and assign it to an ingest node
     logger.info("%s added position %s x%s @ %s", current_user, ticker, body.shares, body.cost_basis)
     return position
 

@@ -1,49 +1,45 @@
 """
-FastAPI application — wires together routes and pipeline lifecycle.
+FastAPI application — serves REST API and WebSocket relay.
 """
 
 import asyncio
 import logging
+import os
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from prometheus_fastapi_instrumentator import Instrumentator
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 import server.db as db
 from server.logging_config import configure_logging
 from server.pipeline import relay
-from server.pipeline.enrichment import load_prev_closes
+from server.pipeline.enrichment import init_redis, close_redis
 from server.api.routes import auth, internal, positions, users, ws
 
 configure_logging()
 logger = logging.getLogger(__name__)
 
+REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await db.init()
-    startup_tickers = await db.get_all_tickers()
-    logger.info("startup: loaded %d tickers from db", len(startup_tickers))
+    await init_redis(REDIS_URL)
+    logger.info("startup: db and redis initialized")
 
-    relay_task = None
-    try:
-        if startup_tickers:
-            await load_prev_closes(startup_tickers)
-        relay_task = asyncio.create_task(relay.run(startup_tickers))
-    except Exception as e:
-        logger.warning("skipping relay/enrichment: %s", e)
+    relay_task = asyncio.create_task(relay.run())
 
     yield
 
-    if relay_task:
-        relay_task.cancel()
-        try:
-            await relay_task
-        except (asyncio.CancelledError, Exception):
-            pass
+    relay_task.cancel()
+    try:
+        await relay_task
+    except (asyncio.CancelledError, Exception):
+        pass
+    await close_redis()
     await db.close()
 
 
@@ -65,8 +61,6 @@ app.include_router(users.router, prefix="/external")
 app.include_router(positions.router, prefix="/external")
 app.include_router(ws.router)
 app.include_router(internal.router, prefix="/internal")
-
-Instrumentator().instrument(app).expose(app, endpoint="/metrics")
 
 
 @app.get("/external/health")

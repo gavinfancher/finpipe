@@ -6,9 +6,7 @@ from pydantic import BaseModel
 import server.auth as auth
 import server.db as db
 from server.api.deps import get_current_user, get_current_user_flexible
-from server.pipeline import state
-from server.pipeline.enrichment import _STATE_MAP, _fetch_closes, _trading_dates
-from server.pipeline.relay import send_to_consumer
+from server.pipeline.enrichment import get_cached_tick
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -33,14 +31,7 @@ async def add_ticker(ticker: str, current_user: str = Depends(get_current_user))
     except ValueError:
         raise HTTPException(status_code=401, detail="user not found — please log out and register again")
     logger.info("%s added %s", current_user, ticker, extra={"tags": {"username": current_user, "action": "ticker_added", "ticker": ticker}})
-    await send_to_consumer({"action": "subscribe", "ticker": ticker})
-    if ticker not in state.prev_closes:
-        closes = await _fetch_closes(ticker, _trading_dates())
-        if closes["prev"] is not None:
-            state.prev_closes[ticker] = closes["prev"]
-        for period, attr in _STATE_MAP:
-            if closes[period] is not None:
-                getattr(state, attr)[ticker] = closes[period]
+    # Control node will pick up the new ticker and assign it to an ingest node
     return {"message": "success"}
 
 
@@ -64,15 +55,6 @@ async def patch_tickers(
         logger.info("%s added %s", current_user, add, extra={"tags": {"username": current_user, "action": "ticker_added"}})
     if remove:
         logger.info("%s removed %s", current_user, remove, extra={"tags": {"username": current_user, "action": "ticker_removed"}})
-    for ticker in add:
-        await send_to_consumer({"action": "subscribe", "ticker": ticker})
-        if ticker not in state.prev_closes:
-            closes = await _fetch_closes(ticker, _trading_dates())
-            if closes["prev"] is not None:
-                state.prev_closes[ticker] = closes["prev"]
-            for period, attr in _STATE_MAP:
-                if closes[period] is not None:
-                    getattr(state, attr)[ticker] = closes[period]
     return {"message": "success"}
 
 

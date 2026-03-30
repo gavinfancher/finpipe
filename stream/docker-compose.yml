@@ -10,39 +10,130 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
-  prometheus:
-    image: prom/prometheus:latest
+  redpanda:
+    image: redpandadata/redpanda:latest
     restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=512M
+      - --advertise-kafka-addr=redpanda:9092
     ports:
-      - "9090:9090"
+      - "9092:9092"
     volumes:
-      - ./logging/prometheus.yml:/etc/prometheus/prometheus.yml
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - redpanda_data:/var/redpanda/data
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
-  loki:
-    image: grafana/loki:latest
+  redis:
+    image: redis:7-alpine
     restart: unless-stopped
     ports:
-      - "3100:3100"
-    command: -config.file=/etc/loki/local-config.yaml
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
 
-  grafana:
-    image: grafana/grafana:latest
+  control:
+    build: .
     restart: unless-stopped
-    ports:
-      - "3000:3000"
+    command: ["uv", "run", "python", "-m", "server.control.main"]
     environment:
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_PASSWORD}
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - ./logging/provisioning:/etc/grafana/provisioning
-      - ./logging/grafana-dashboard.json:/var/lib/grafana/dashboards/finpipe.json
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/finpipe
+      REDIS_URL: redis://redis:6379
+      CONTROL_POLL_INTERVAL: "5"
     depends_on:
-      - prometheus
-      - loki
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ingest-0:
+    build: .
+    restart: unless-stopped
+    command: ["uv", "run", "python", "-m", "server.ingestion.massive"]
+    environment:
+      NODE_ID: ingest-0
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      KAFKA_BOOTSTRAP: redpanda:9092
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      control:
+        condition: service_started
+
+  ingest-1:
+    build: .
+    restart: unless-stopped
+    command: ["uv", "run", "python", "-m", "server.ingestion.massive"]
+    environment:
+      NODE_ID: ingest-1
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      KAFKA_BOOTSTRAP: redpanda:9092
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      control:
+        condition: service_started
+
+  ingest-2:
+    build: .
+    restart: unless-stopped
+    command: ["uv", "run", "python", "-m", "server.ingestion.massive"]
+    environment:
+      NODE_ID: ingest-2
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      KAFKA_BOOTSTRAP: redpanda:9092
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      control:
+        condition: service_started
+
+  ws-relay:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/finpipe
+      REDIS_URL: redis://redis:6379
+      KAFKA_BOOTSTRAP: redpanda:9092
+      JWT_SECRET: ${JWT_SECRET}
+      BETA_KEY: ${BETA_KEY}
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
 
 volumes:
   postgres_data:
-  grafana_data:
+  redpanda_data:
+  redis_data:
