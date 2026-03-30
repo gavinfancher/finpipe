@@ -170,7 +170,7 @@ async def fetch_and_cache_ticker(ticker: str) -> dict | None:
         volume = int(aggs[-1].volume or 0)
         timestamp = aggs[-1].timestamp or 0
 
-        # prev_close = second-to-last trading day
+        # prev_close = second-to-last trading day's close (baseline for daily change)
         prev_close = aggs[-2].close if len(aggs) >= 2 else None
 
         if prev_close:

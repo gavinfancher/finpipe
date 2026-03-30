@@ -52,12 +52,13 @@ def trading_dates() -> dict[str, date]:
 
     result: dict[str, date] = {}
 
-    # "prev" = second-to-last trading day (the close the last day's change is vs)
-    # "last" = last trading day (the most recent regular-session close)
+    # "prev" = last trading day's close (baseline for daily change calculation)
+    # "last" = same as prev (kept for snapshot seeding below)
     if len(days) >= 2:
-        result["prev"] = days[-2]
+        result["prev"] = days[-1]
         result["last"] = days[-1]
     elif len(days) == 1:
+        result["prev"] = days[-1]
         result["last"] = days[-1]
 
     for label, lookback in _PERF_PERIODS.items():
@@ -132,13 +133,13 @@ async def main():
             rdb.hset(PERF_KEY.format(ticker), mapping=perf_data)
 
         # Price snapshot — use the snapshot endpoint for the most recent quote
-        # (includes after-hours). Change is vs prev_close (second-to-last day).
+        # (includes after-hours). Change is vs prev_close (last trading day).
         try:
             snap = client.get_snapshot_ticker("stocks", ticker)
-            if snap and snap.prev_day and snap.prev_day.close:
-                price = snap.prev_day.close
-                volume = int(snap.prev_day.volume or 0)
-                timestamp = snap.prev_day.timestamp or 0
+            if snap and snap.day and snap.day.close:
+                price = snap.day.close
+                volume = int(snap.day.volume or 0)
+                timestamp = snap.day.timestamp or 0
                 change = (price - prev_close) if prev_close else 0
                 change_pct = (change / prev_close * 100) if prev_close else 0
                 rdb.hset(PRICE_KEY.format(ticker), mapping={
