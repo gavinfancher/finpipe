@@ -42,6 +42,12 @@ async def init():
                 opened_at  timestamptz not null default now()
             )
         """)
+        await conn.execute("""
+            alter table users add column if not exists preferences jsonb not null default '{}'
+        """)
+        await conn.execute("""
+            alter table user_tickers add column if not exists sort_order integer not null default 0
+        """)
 
 
 async def close():
@@ -105,7 +111,7 @@ async def get_user_tickers(username: str) -> list[str]:
             from user_tickers t
             join users u on u.id = t.user_id
             where u.username = $1
-            order by t.ticker
+            order by t.sort_order, t.ticker
             """,
             username,
         )
@@ -242,6 +248,41 @@ async def delete_position(username: str, position_id: int) -> bool:
             username, position_id,
         )
     return result == "DELETE 1"
+
+
+# --- preferences ---
+
+async def get_preferences(username: str) -> dict:
+    async with _pool.acquire() as conn:
+        row = await conn.fetchval(
+            "select preferences from users where username = $1", username
+        )
+    import json
+    return json.loads(row) if row else {}
+
+
+async def set_preferences(username: str, prefs: dict):
+    import json
+    async with _pool.acquire() as conn:
+        await conn.execute(
+            "update users set preferences = $1::jsonb where username = $2",
+            json.dumps(prefs), username,
+        )
+
+
+async def reorder_tickers(username: str, tickers: list[str]):
+    """Set sort_order based on the provided list order."""
+    async with _pool.acquire() as conn:
+        user_id = await conn.fetchval(
+            "select id from users where username = $1", username
+        )
+        if user_id is None:
+            return
+        for i, ticker in enumerate(tickers):
+            await conn.execute(
+                "update user_tickers set sort_order = $1 where user_id = $2 and ticker = $3",
+                i, user_id, ticker,
+            )
 
 
 # --- startup ---

@@ -76,6 +76,30 @@ async def patch_tickers(
     return {"message": "success"}
 
 
+@router.put("/tickers/order")
+async def reorder_tickers(
+    body: list[str],
+    current_user: str = Depends(get_current_user),
+):
+    await db.reorder_tickers(current_user, [t.upper() for t in body])
+    return {"message": "success"}
+
+
+@router.get("/preferences")
+async def get_preferences(current_user: str = Depends(get_current_user)):
+    prefs = await db.get_preferences(current_user)
+    return prefs
+
+
+@router.put("/preferences")
+async def set_preferences(
+    body: dict,
+    current_user: str = Depends(get_current_user),
+):
+    await db.set_preferences(current_user, body)
+    return {"message": "success"}
+
+
 @router.post("/api-key")
 async def generate_api_key(current_user: str = Depends(get_current_user)):
     key = auth.generate_api_key()

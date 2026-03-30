@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useStockWebSocket } from "../hooks/useStockWebSocket";
 import { useMarketStatus } from "../hooks/useMarketStatus";
 import { useMarketCountdown, formatCountdown } from "../hooks/useMarketCountdown";
+import { usePreferences } from "../hooks/usePreferences";
 import { getToken } from "../store/userStore";
 import TickerRow, { type WLColKey } from "../components/TickerRow";
 import PositionsTab from "../components/PositionsTab";
@@ -26,16 +27,12 @@ const DEFAULT_WL_COLS: WLCol[] = [
   { key: "volume",    label: "volume",  visible: true, sortable: false },
 ];
 
-const WL_LS_KEY = "watchlist-columns";
-
-function loadWLCols(): WLCol[] {
+function parseWLCols(saved: unknown): WLCol[] {
+  if (!Array.isArray(saved)) return DEFAULT_WL_COLS;
   try {
-    const saved = localStorage.getItem(WL_LS_KEY);
-    if (saved) {
-      const parsed: WLCol[] = JSON.parse(saved);
-      const keys = new Set(parsed.map((c) => c.key));
-      return [...parsed, ...DEFAULT_WL_COLS.filter((c) => !keys.has(c.key))];
-    }
+    const parsed = saved as WLCol[];
+    const keys = new Set(parsed.map((c) => c.key));
+    return [...parsed, ...DEFAULT_WL_COLS.filter((c) => !keys.has(c.key))];
   } catch { /* empty */ }
   return DEFAULT_WL_COLS;
 }
@@ -53,7 +50,7 @@ const STATUS_DOT: Record<string, string> = {
 };
 
 
-export default function FaucetDashboard() {
+export default function Stream() {
   const navigate = useNavigate();
   const token = getToken() ?? "";
 
@@ -65,6 +62,7 @@ export default function FaucetDashboard() {
   const authHeader = { Authorization: `Bearer ${token}` };
   const market = useMarketStatus();
   const countdown = useMarketCountdown();
+  const { prefs, loaded: prefsLoaded, update: updatePref } = usePreferences(token);
   const prevPrices = useRef<Record<string, number>>({});
   const [, forceUpdate] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -75,12 +73,19 @@ export default function FaucetDashboard() {
   const [activeTab, setActiveTab] = useState<"watchlist" | "positions">("watchlist");
   const [sortKey, setSortKey] = useState("ticker");
   const [sortDir, setSortDir] = useState<1 | -1>(1);
-  const [wlCols, setWLCols] = useState<WLCol[]>(loadWLCols);
+  const [wlCols, setWLCols] = useState<WLCol[]>(DEFAULT_WL_COLS);
   const [showWLPanel, setShowWLPanel] = useState(false);
   const [wlPanelPos, setWLPanelPos] = useState<{ top: number; right: number } | null>(null);
   const wlColBtnRef = useRef<HTMLButtonElement>(null);
   const [wlDragKey, setWLDragKey] = useState<WLColKey | null>(null);
   const [wlDragOverKey, setWLDragOverKey] = useState<WLColKey | null>(null);
+
+  // Load column prefs from server
+  useEffect(() => {
+    if (prefsLoaded && prefs.wlCols) {
+      setWLCols(parseWLCols(prefs.wlCols));
+    }
+  }, [prefsLoaded]);
 
   const fetchUserTickers = useCallback(async () => {
     const res = await fetch(`${API_BASE}/external/tickers/list`, { headers: authHeader });
@@ -162,7 +167,7 @@ export default function FaucetDashboard() {
     return () => document.removeEventListener("pointerdown", close);
   }, [showWLPanel]);
 
-  function saveWLCols(next: WLCol[]) { localStorage.setItem(WL_LS_KEY, JSON.stringify(next)); setWLCols(next); }
+  function saveWLCols(next: WLCol[]) { setWLCols(next); updatePref("wlCols", next); }
   function toggleWLCol(key: WLColKey) { saveWLCols(wlCols.map((c) => c.key === key ? { ...c, visible: !c.visible } : c)); }
   function onWLDragStart(key: WLColKey) { setWLDragKey(key); }
   function onWLDragOver(e: React.DragEvent, key: WLColKey) { e.preventDefault(); setWLDragOverKey(key); }
@@ -185,12 +190,13 @@ export default function FaucetDashboard() {
   }
 
   function toggleSort(key: string) {
+    if (key === "ticker") { setSortKey("ticker"); setSortDir(1); return; }
     if (sortKey === key) setSortDir((d) => (d === 1 ? -1 : 1));
-    else { setSortKey(key); setSortDir(key === "ticker" ? 1 : -1); }
+    else { setSortKey(key); setSortDir(-1); }
   }
 
   const displayList = userTickers.slice().sort((a, b) => {
-    if (sortKey === "ticker") return a.localeCompare(b) * sortDir;
+    if (sortKey === "ticker") return a.localeCompare(b);
     const va = (ticks[a] as unknown as Record<string, number | undefined>)?.[sortKey] ?? -Infinity;
     const vb = (ticks[b] as unknown as Record<string, number | undefined>)?.[sortKey] ?? -Infinity;
     return (va - vb) * sortDir;
@@ -202,12 +208,12 @@ export default function FaucetDashboard() {
   if (!token) return null;
 
   return (
-    <div className="dashboard faucet-scope">
+    <div className="dashboard stream-scope">
       <NavBar />
 
-      <div className="faucet-toolbar">
+      <div className="stream-toolbar">
         <span className="stream-label">stream</span>
-        <div className="faucet-toolbar__search">
+        <div className="stream-toolbar__search">
           <div className="search-wrap">
             <span className="search-slash">/</span>
             <input
@@ -228,7 +234,7 @@ export default function FaucetDashboard() {
             )}
           </div>
         </div>
-        <div className="faucet-toolbar__right">
+        <div className="stream-toolbar__right">
           <span className={`status-dot ${market.dotClass}`} />
           <span className="status-label">{market.label}</span>
         </div>

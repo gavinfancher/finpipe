@@ -3,7 +3,7 @@ import Home from "./pages/Home";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Dashboard from "./pages/Dashboard";
-import FaucetDashboard from "./pages/FaucetDashboard";
+import Stream from "./pages/Stream";
 import Learn from "./pages/Learn";
 import Blog from "./pages/Blog";
 import Account from "./pages/Account";
@@ -19,7 +19,7 @@ export default function App() {
       <Route path="/register" element={<Register />} />
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/account" element={<Account />} />
-      <Route path="/stream" element={<FaucetDashboard />} />
+      <Route path="/stream" element={<Stream />} />
     </Routes>
   );
 }
