@@ -15,7 +15,7 @@ from slowapi.errors import RateLimitExceeded
 import server.db as db
 from server.logging_config import configure_logging
 from server.pipeline import relay
-from server.pipeline.enrichment import init_redis, close_redis
+from server.pipeline.enrichment import init_redis, close_redis, load_all_cached_ticks
 from server.api.routes import auth, internal, positions, users, ws
 
 configure_logging()
@@ -29,6 +29,10 @@ async def lifespan(app: FastAPI):
     await db.init()
     await init_redis(REDIS_URL)
     logger.info("startup: db and redis initialized")
+
+    # Pre-load cached ticks so dashboard has data even when market is closed
+    from server.pipeline import state
+    state.ticks = await load_all_cached_ticks()
 
     relay_task = asyncio.create_task(relay.run())
 

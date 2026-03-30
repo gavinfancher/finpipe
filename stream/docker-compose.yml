@@ -125,6 +125,7 @@ services:
       KAFKA_BOOTSTRAP: redpanda:9092
       JWT_SECRET: ${JWT_SECRET}
       BETA_KEY: ${BETA_KEY}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
     depends_on:
       postgres:
         condition: service_healthy

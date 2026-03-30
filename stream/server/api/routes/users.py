@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,10 +7,23 @@ from pydantic import BaseModel
 import server.auth as auth
 import server.db as db
 from server.api.deps import get_current_user, get_current_user_flexible
-from server.pipeline.enrichment import get_cached_tick
+from server.pipeline import state
+from server.pipeline.enrichment import fetch_and_cache_ticker
+from server.pipeline.relay import broadcast_ui
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
+
+
+async def _backfill_ticker(ticker: str):
+    """Fetch and broadcast ticker data in background."""
+    try:
+        tick = await fetch_and_cache_ticker(ticker)
+        if tick:
+            state.ticks[ticker] = tick
+            await broadcast_ui({"type": "tick", "tick": tick})
+    except Exception as e:
+        logger.error("backfill %s failed: %s", ticker, e)
 
 
 class TickerPatch(BaseModel):
@@ -31,7 +45,8 @@ async def add_ticker(ticker: str, current_user: str = Depends(get_current_user))
     except ValueError:
         raise HTTPException(status_code=401, detail="user not found — please log out and register again")
     logger.info("%s added %s", current_user, ticker, extra={"tags": {"username": current_user, "action": "ticker_added", "ticker": ticker}})
-    # Control node will pick up the new ticker and assign it to an ingest node
+    if ticker not in state.ticks:
+        asyncio.create_task(_backfill_ticker(ticker))
     return {"message": "success"}
 
 
@@ -53,6 +68,9 @@ async def patch_tickers(
     await db.patch_user_tickers(current_user, add, remove)
     if add:
         logger.info("%s added %s", current_user, add, extra={"tags": {"username": current_user, "action": "ticker_added"}})
+        for ticker in add:
+            if ticker not in state.ticks:
+                asyncio.create_task(_backfill_ticker(ticker))
     if remove:
         logger.info("%s removed %s", current_user, remove, extra={"tags": {"username": current_user, "action": "ticker_removed"}})
     return {"message": "success"}

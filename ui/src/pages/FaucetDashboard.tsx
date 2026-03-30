@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useStockWebSocket } from "../hooks/useStockWebSocket";
 import { useMarketStatus } from "../hooks/useMarketStatus";
+import { useMarketCountdown, formatCountdown } from "../hooks/useMarketCountdown";
 import { getToken } from "../store/userStore";
 import TickerRow, { type WLColKey } from "../components/TickerRow";
 import PositionsTab from "../components/PositionsTab";
@@ -63,6 +64,7 @@ export default function FaucetDashboard() {
   const { ticks, status } = useStockWebSocket(token);
   const authHeader = { Authorization: `Bearer ${token}` };
   const market = useMarketStatus();
+  const countdown = useMarketCountdown();
   const prevPrices = useRef<Record<string, number>>({});
   const [, forceUpdate] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
@@ -311,7 +313,7 @@ export default function FaucetDashboard() {
         <span className="statusbar-label">{STATUS_LABEL[status].toLowerCase()}</span>
         <span className="statusbar-sep">·</span>
         <span className="statusbar-label">{WS_BASE}</span>
-        {market.session !== "market open" && (
+        {(market.session === "pre-market" || market.session === "post-market") && (
           <>
             <span className="statusbar-sep">·</span>
             <span className="statusbar-label statusbar-label--muted">
@@ -319,6 +321,12 @@ export default function FaucetDashboard() {
                 ? "updated --:-- ago"
                 : `updated ${formatMmSs(elapsed)} ago`}
             </span>
+          </>
+        )}
+        {countdown !== null && (
+          <>
+            <span className="statusbar-sep">·</span>
+            <span className="statusbar-label">trading in {formatCountdown(countdown)}</span>
           </>
         )}
       </footer>

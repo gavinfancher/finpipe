@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -5,6 +6,9 @@ from pydantic import BaseModel
 
 import server.db as db
 from server.api.deps import get_current_user
+from server.pipeline import state
+from server.pipeline.enrichment import fetch_and_cache_ticker
+from server.pipeline.relay import broadcast_ui
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -30,7 +34,16 @@ async def get_positions(current_user: str = Depends(get_current_user)):
 async def add_position(body: PositionCreate, current_user: str = Depends(get_current_user)):
     ticker = body.ticker.upper()
     position = await db.add_position(current_user, ticker, body.shares, body.cost_basis)
-    # Control node will pick up the new ticker and assign it to an ingest node
+    if ticker not in state.ticks:
+        async def _backfill():
+            try:
+                tick = await fetch_and_cache_ticker(ticker)
+                if tick:
+                    state.ticks[ticker] = tick
+                    await broadcast_ui({"type": "tick", "tick": tick})
+            except Exception as e:
+                logger.error("backfill %s failed: %s", ticker, e)
+        asyncio.create_task(_backfill())
     logger.info("%s added position %s x%s @ %s", current_user, ticker, body.shares, body.cost_basis)
     return position
 

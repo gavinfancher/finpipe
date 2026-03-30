@@ -1,0 +1,22 @@
+Cloudflare Tunnel — expose local backend at api.finpipe.app
+============================================================
+
+Prerequisites: docker compose up running on :8080
+
+1. Login to Cloudflare
+   cloudflared tunnel login
+
+2. Add DNS route (one-time) — creates CNAME for api.finpipe.app
+   cloudflared tunnel route dns finpipe-api api.finpipe.app
+
+3. Run the tunnel
+   cloudflared tunnel --url http://localhost:8080 run finpipe-api
+
+4. Update UI build env
+   Cloudflare dashboard → Workers → finpipe → Settings → Variables
+   Set VITE_API_URL = https://api.finpipe.app then redeploy
+
+   Or locally:
+   VITE_API_URL=https://api.finpipe.app npm run build
+
+To stop exposing the backend, just ctrl-c the tunnel.

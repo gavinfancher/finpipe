@@ -556,20 +556,28 @@ name = "finpipe-dagster"
 version = "0.1.0"
 source = { editable = "dagster" }
 dependencies = [
+    { name = "asyncpg" },
     { name = "boto3" },
     { name = "dagster" },
     { name = "dagster-webserver" },
+    { name = "massive" },
+    { name = "pandas-market-calendars" },
     { name = "pendulum" },
     { name = "pyarrow" },
+    { name = "redis" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "asyncpg", specifier = ">=0.31.0" },
     { name = "boto3", specifier = ">=1.35" },
     { name = "dagster", specifier = ">=1.9" },
     { name = "dagster-webserver", specifier = ">=1.9" },
+    { name = "massive", specifier = ">=2.3.2" },
+    { name = "pandas-market-calendars", specifier = ">=5.3.1.2" },
     { name = "pendulum", specifier = ">=3.2.0" },
     { name = "pyarrow", specifier = ">=18.0" },
+    { name = "redis", specifier = ">=5.0.0" },
 ]
 
 [[package]]
