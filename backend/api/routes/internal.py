@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request
 
-from server.pipeline import state
+from pipeline import state
 
 router = APIRouter()
 

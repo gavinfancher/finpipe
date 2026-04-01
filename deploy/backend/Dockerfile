@@ -7,10 +7,12 @@ COPY backend/pyproject.toml ./
 RUN uv sync --no-dev --no-install-project
 
 # Copy application code
-COPY backend/server/ server/
+COPY backend/api/ api/
+COPY backend/pipeline/ pipeline/
+COPY backend/auth.py backend/config.py backend/db.py backend/logging_config.py ./
 
 # Install the project itself
 RUN uv sync --no-dev
 
 # Default: API service
-CMD ["uv", "run", "uvicorn", "server.api.app:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["uv", "run", "uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8080"]

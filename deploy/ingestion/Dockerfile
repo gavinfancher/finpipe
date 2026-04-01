@@ -3,13 +3,12 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 WORKDIR /app
 
 # Copy dependency files first for layer caching
-COPY ingestion/pyproject.toml ./
+COPY backend/pyproject.toml ./
 RUN uv sync --no-dev --no-install-project
 
-# Copy application code
-COPY ingestion/streaming/ streaming/
-COPY ingestion/control/ control/
-COPY ingestion/batch/ batch/
+# Copy only streaming + control code
+COPY backend/streaming/ streaming/
+COPY backend/control/ control/
 
 # Install the project itself
 RUN uv sync --no-dev

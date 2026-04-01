@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 import bcrypt
 import jwt
 
-from server.config import JWT_SECRET
+from config import JWT_SECRET
 
 ALGORITHM = "HS256"
 TOKEN_EXPIRE_DAYS = 30

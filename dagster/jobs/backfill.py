@@ -14,7 +14,6 @@ import boto3
 import pendulum
 from dagster import (
     Config,
-    Definitions,
     In,
     Nothing,
     Out,
@@ -302,5 +301,3 @@ def backfill_graph():
 
 
 backfill_job = backfill_graph.to_job(name="backfill_job")
-
-defs = Definitions(jobs=[backfill_job])

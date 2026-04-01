@@ -4,7 +4,7 @@ Postgres helpers for per-user ticker persistence.
 
 import asyncpg
 
-from server.config import DATABASE_URL
+from config import DATABASE_URL
 
 _pool: asyncpg.Pool | None = None
 

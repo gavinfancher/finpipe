@@ -6,8 +6,8 @@ from pydantic import BaseModel
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 
-import server.auth as auth
-import server.db as db
+import auth
+import db
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

@@ -12,11 +12,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-import server.db as db
-from server.logging_config import configure_logging
-from server.pipeline import relay
-from server.pipeline.enrichment import init_redis, close_redis, load_all_cached_ticks
-from server.api.routes import auth, internal, positions, users, ws
+import db
+from logging_config import configure_logging
+from pipeline import relay
+from pipeline.enrichment import init_redis, close_redis, load_all_cached_ticks
+from api.routes import auth, internal, positions, users, ws
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
     logger.info("startup: db and redis initialized")
 
     # Pre-load cached ticks so dashboard has data even when market is closed
-    from server.pipeline import state
+    from pipeline import state
     state.ticks = await load_all_cached_ticks()
 
     relay_task = asyncio.create_task(relay.run())
@@ -49,7 +49,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-from server.api.routes.auth import limiter
+from api.routes.auth import limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 

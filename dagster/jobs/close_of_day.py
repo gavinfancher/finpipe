@@ -18,7 +18,6 @@ from datetime import date, timedelta
 import pandas_market_calendars as mcal
 import pendulum
 from dagster import (
-    Definitions,
     Out,
     ScheduleDefinition,
     get_dagster_logger,
@@ -193,9 +192,4 @@ close_of_day_schedule = ScheduleDefinition(
     job=close_of_day_job,
     cron_schedule="30 20 * * 1-5",  # 20:30 NYC, weekdays
     execution_timezone="America/New_York",
-)
-
-defs = Definitions(
-    jobs=[close_of_day_job],
-    schedules=[close_of_day_schedule],
 )

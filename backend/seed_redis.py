@@ -2,7 +2,7 @@
 One-off script to seed Redis with reference closes for all tickers.
 Run this to populate perf data before the first close-of-day Dagster job.
 
-Usage: uv run python -m server.seed_redis
+Usage: uv run python -m seed_redis
 """
 
 import asyncio

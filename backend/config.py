@@ -8,7 +8,7 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).parent.parent / ".env")
+load_dotenv(Path(__file__).parent / ".env")
 
 CONSUMER_URL: str = os.getenv("CONSUMER_URL", "ws://localhost:9000/stream")
 MASSIVE_API_KEY: str = os.getenv("MASSIVE_API_KEY")
