@@ -1,8 +1,8 @@
 [project]
 name = "finpipe"
 version = "0.1.0"
-description = "Financial data platform — pipelines, streaming, and UI"
+description = "Financial data platform — backend API, data ingestion, orchestration, and frontend"
 requires-python = ">=3.12"
 
 [tool.uv.workspace]
-members = ["dagster", "deploy", "stream"]
+members = ["backend", "dagster", "ingestion", "deploy/dagster"]

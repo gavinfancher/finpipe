@@ -28,5 +28,8 @@ dist/
 .python-version
 
 # dagster
-/dagster/storage/
-/dagster/logs/
+dagster/storage/
+dagster/logs/
+
+# frontend
+frontend/.vite/

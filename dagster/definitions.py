@@ -7,8 +7,8 @@ Usage:
 
 from dagster import Definitions
 
-from close_of_day import close_of_day_job, close_of_day_schedule
-from dagster_backfill import backfill_job
+from jobs.close_of_day import close_of_day_job, close_of_day_schedule
+from jobs.backfill import backfill_job
 
 defs = Definitions(
     jobs=[backfill_job, close_of_day_job],

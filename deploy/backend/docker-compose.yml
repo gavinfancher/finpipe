@@ -60,73 +60,10 @@ services:
       timeout: 3s
       retries: 5
 
-  control:
-    build: .
-    restart: unless-stopped
-    command: ["uv", "run", "python", "-m", "server.control.main"]
-    environment:
-      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/finpipe
-      REDIS_URL: redis://redis:6379
-      CONTROL_POLL_INTERVAL: "5"
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-
-  ingest-0:
-    build: .
-    restart: unless-stopped
-    command: ["uv", "run", "python", "-m", "server.ingestion.massive"]
-    environment:
-      NODE_ID: ingest-0
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
-      KAFKA_BOOTSTRAP: redpanda:9092
-      REDIS_URL: redis://redis:6379
-    depends_on:
-      redpanda:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      control:
-        condition: service_started
-
-  ingest-1:
-    build: .
-    restart: unless-stopped
-    command: ["uv", "run", "python", "-m", "server.ingestion.massive"]
-    environment:
-      NODE_ID: ingest-1
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
-      KAFKA_BOOTSTRAP: redpanda:9092
-      REDIS_URL: redis://redis:6379
-    depends_on:
-      redpanda:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      control:
-        condition: service_started
-
-  ingest-2:
-    build: .
-    restart: unless-stopped
-    command: ["uv", "run", "python", "-m", "server.ingestion.massive"]
-    environment:
-      NODE_ID: ingest-2
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
-      KAFKA_BOOTSTRAP: redpanda:9092
-      REDIS_URL: redis://redis:6379
-    depends_on:
-      redpanda:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      control:
-        condition: service_started
-
   ws-relay:
-    build: .
+    build:
+      context: ../..
+      dockerfile: deploy/backend/Dockerfile
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -144,6 +81,79 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+
+  control:
+    build:
+      context: ../..
+      dockerfile: deploy/ingestion/Dockerfile
+    restart: unless-stopped
+    command: ["uv", "run", "python", "-m", "control.main"]
+    environment:
+      DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/finpipe
+      REDIS_URL: redis://redis:6379
+      CONTROL_POLL_INTERVAL: "5"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  ingest-0:
+    build:
+      context: ../..
+      dockerfile: deploy/ingestion/Dockerfile
+    restart: unless-stopped
+    command: ["uv", "run", "python", "-m", "streaming.massive"]
+    environment:
+      NODE_ID: ingest-0
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      KAFKA_BOOTSTRAP: redpanda:9092
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      control:
+        condition: service_started
+
+  ingest-1:
+    build:
+      context: ../..
+      dockerfile: deploy/ingestion/Dockerfile
+    restart: unless-stopped
+    command: ["uv", "run", "python", "-m", "streaming.massive"]
+    environment:
+      NODE_ID: ingest-1
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      KAFKA_BOOTSTRAP: redpanda:9092
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      control:
+        condition: service_started
+
+  ingest-2:
+    build:
+      context: ../..
+      dockerfile: deploy/ingestion/Dockerfile
+    restart: unless-stopped
+    command: ["uv", "run", "python", "-m", "streaming.massive"]
+    environment:
+      NODE_ID: ingest-2
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      KAFKA_BOOTSTRAP: redpanda:9092
+      REDIS_URL: redis://redis:6379
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      control:
+        condition: service_started
 
 volumes:
   postgres_data:

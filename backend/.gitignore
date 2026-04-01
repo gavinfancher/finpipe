@@ -15,12 +15,6 @@ wheels/
 # secrets
 .env
 
-# Node / frontend
-ui/node_modules/
-ui/dist/
-ui/.vite/
-
-
 # other
 .DS_Store
 .claude

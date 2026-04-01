@@ -16,9 +16,10 @@ resolution-markers = [
 [manifest]
 members = [
     "finpipe",
+    "finpipe-backend",
     "finpipe-dagster",
     "finpipe-deploy",
-    "finpipe-stream",
+    "finpipe-ingestion",
 ]
 
 [[package]]
@@ -552,55 +553,9 @@ version = "0.1.0"
 source = { virtual = "." }
 
 [[package]]
-name = "finpipe-dagster"
+name = "finpipe-backend"
 version = "0.1.0"
-source = { editable = "dagster" }
-dependencies = [
-    { name = "asyncpg" },
-    { name = "boto3" },
-    { name = "dagster" },
-    { name = "dagster-webserver" },
-    { name = "massive" },
-    { name = "pandas-market-calendars" },
-    { name = "pendulum" },
-    { name = "pyarrow" },
-    { name = "redis" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "asyncpg", specifier = ">=0.31.0" },
-    { name = "boto3", specifier = ">=1.35" },
-    { name = "dagster", specifier = ">=1.9" },
-    { name = "dagster-webserver", specifier = ">=1.9" },
-    { name = "massive", specifier = ">=2.3.2" },
-    { name = "pandas-market-calendars", specifier = ">=5.3.1.2" },
-    { name = "pendulum", specifier = ">=3.2.0" },
-    { name = "pyarrow", specifier = ">=18.0" },
-    { name = "redis", specifier = ">=5.0.0" },
-]
-
-[[package]]
-name = "finpipe-deploy"
-version = "0.1.0"
-source = { editable = "deploy" }
-dependencies = [
-    { name = "dagster" },
-    { name = "dagster-postgres" },
-    { name = "dagster-webserver" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "dagster", specifier = ">=1.12.11" },
-    { name = "dagster-postgres", specifier = ">=0.24.11" },
-    { name = "dagster-webserver", specifier = ">=1.12.11" },
-]
-
-[[package]]
-name = "finpipe-stream"
-version = "0.1.0"
-source = { editable = "stream" }
+source = { editable = "backend" }
 dependencies = [
     { name = "aiokafka" },
     { name = "asyncpg" },
@@ -632,6 +587,75 @@ requires-dist = [
     { name = "slowapi", specifier = ">=0.1.9" },
     { name = "uvicorn", specifier = ">=0.34.0" },
     { name = "websockets", specifier = ">=13.0" },
+]
+
+[[package]]
+name = "finpipe-dagster"
+version = "0.1.0"
+source = { editable = "dagster" }
+dependencies = [
+    { name = "asyncpg" },
+    { name = "boto3" },
+    { name = "dagster" },
+    { name = "dagster-webserver" },
+    { name = "massive" },
+    { name = "pandas-market-calendars" },
+    { name = "pendulum" },
+    { name = "pyarrow" },
+    { name = "redis" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asyncpg", specifier = ">=0.31.0" },
+    { name = "boto3", specifier = ">=1.35" },
+    { name = "dagster", specifier = ">=1.9" },
+    { name = "dagster-webserver", specifier = ">=1.9" },
+    { name = "massive", specifier = ">=2.3.2" },
+    { name = "pandas-market-calendars", specifier = ">=5.3.1.2" },
+    { name = "pendulum", specifier = ">=3.2.0" },
+    { name = "pyarrow", specifier = ">=18.0" },
+    { name = "redis", specifier = ">=5.0.0" },
+]
+
+[[package]]
+name = "finpipe-deploy"
+version = "0.1.0"
+source = { editable = "deploy/dagster" }
+dependencies = [
+    { name = "dagster" },
+    { name = "dagster-postgres" },
+    { name = "dagster-webserver" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "dagster", specifier = ">=1.12.11" },
+    { name = "dagster-postgres", specifier = ">=0.24.11" },
+    { name = "dagster-webserver", specifier = ">=1.12.11" },
+]
+
+[[package]]
+name = "finpipe-ingestion"
+version = "0.1.0"
+source = { editable = "ingestion" }
+dependencies = [
+    { name = "aiokafka" },
+    { name = "asyncpg" },
+    { name = "boto3" },
+    { name = "massive" },
+    { name = "pyarrow" },
+    { name = "redis" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "aiokafka", specifier = ">=0.12.0" },
+    { name = "asyncpg", specifier = ">=0.31.0" },
+    { name = "boto3", specifier = ">=1.35" },
+    { name = "massive", specifier = ">=2.3.2" },
+    { name = "pyarrow", specifier = ">=18.0" },
+    { name = "redis", specifier = ">=5.0.0" },
 ]
 
 [[package]]

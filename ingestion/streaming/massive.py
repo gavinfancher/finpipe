@@ -4,7 +4,7 @@ Ingestion node: connects to Massive WS and produces ticks to Redpanda.
 Each node subscribes to its assigned tickers (from Redis, set by control node).
 Ticks are produced to the 'market-ticks' Redpanda/Kafka topic.
 
-Run: NODE_ID=ingest-0 uv run python -m server.ingestion.massive
+Run: NODE_ID=ingest-0 uv run python -m streaming.massive
 """
 
 import asyncio

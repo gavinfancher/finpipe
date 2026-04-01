@@ -7,7 +7,7 @@ Control node: manages ticker assignments across ingestion nodes.
 - Deduplicates subscriptions
 - Publishes assignment changes via Redis pub/sub
 
-Run: uv run python -m server.control.main
+Run: uv run python -m control.main
 """
 
 import asyncio
