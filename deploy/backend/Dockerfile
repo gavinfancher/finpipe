@@ -6,13 +6,15 @@ WORKDIR /app
 COPY backend/pyproject.toml ./
 RUN uv sync --no-dev --no-install-project
 
-# Copy application code
+# Copy all application code
 COPY backend/api/ api/
 COPY backend/pipeline/ pipeline/
+COPY backend/streaming/ streaming/
+COPY backend/control/ control/
 COPY backend/auth.py backend/config.py backend/db.py backend/logging_config.py ./
 
 # Install the project itself
 RUN uv sync --no-dev
 
-# Default: API service
+# Default: API + WebSocket relay
 CMD ["uv", "run", "uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8080"]

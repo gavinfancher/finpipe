@@ -4,9 +4,11 @@ __pycache__
 .env
 .git
 .claude
-logging/
-tests/
 .DS_Store
 *.egg-info
 build/
 dist/
+frontend/
+dagster/
+deploy/
+*.md

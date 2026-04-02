@@ -2,9 +2,14 @@
 Postgres helpers for per-user ticker persistence.
 """
 
+import logging
+import os
+
 import asyncpg
 
 from config import DATABASE_URL
+
+logger = logging.getLogger(__name__)
 
 _pool: asyncpg.Pool | None = None
 
@@ -48,6 +53,16 @@ async def init():
         await conn.execute("""
             alter table user_tickers add column if not exists sort_order integer not null default 0
         """)
+
+    # Seed admin user if configured
+    admin_user = os.environ.get("ADMIN_USER")
+    admin_pass = os.environ.get("ADMIN_PASSWORD")
+    if admin_user and admin_pass:
+        import auth
+        pw_hash = auth.hash_password(admin_pass)
+        created = await create_user(admin_user, pw_hash)
+        if created:
+            logger.info("admin user '%s' created", admin_user)
 
 
 async def close():

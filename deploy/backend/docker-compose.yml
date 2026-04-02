@@ -1,3 +1,21 @@
+x-ingest: &ingest
+  build:
+    context: ../..
+    dockerfile: deploy/backend/Dockerfile
+  command: ["uv", "run", "python", "-m", "streaming.massive"]
+  restart: unless-stopped
+  environment: &ingest-env
+    MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+    KAFKA_BOOTSTRAP: redpanda:9092
+    REDIS_URL: redis://redis:6379
+  depends_on:
+    redpanda:
+      condition: service_healthy
+    redis:
+      condition: service_healthy
+    control:
+      condition: service_started
+
 services:
   postgres:
     image: postgres:17
@@ -74,6 +92,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       BETA_KEY: ${BETA_KEY}
       MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      ADMIN_USER: ${ADMIN_USER}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,75 +105,27 @@ services:
   control:
     build:
       context: ../..
-      dockerfile: deploy/ingestion/Dockerfile
+      dockerfile: deploy/backend/Dockerfile
     restart: unless-stopped
     command: ["uv", "run", "python", "-m", "control.main"]
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/finpipe
       REDIS_URL: redis://redis:6379
       CONTROL_POLL_INTERVAL: "5"
+      MIN_NODES: "1"
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
 
+  # Ingestion nodes — add/remove entries to scale.
+  # Each needs a unique NODE_ID matching the control node's assignment scheme.
   ingest-0:
-    build:
-      context: ../..
-      dockerfile: deploy/ingestion/Dockerfile
-    restart: unless-stopped
-    command: ["uv", "run", "python", "-m", "streaming.massive"]
+    <<: *ingest
     environment:
+      <<: *ingest-env
       NODE_ID: ingest-0
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
-      KAFKA_BOOTSTRAP: redpanda:9092
-      REDIS_URL: redis://redis:6379
-    depends_on:
-      redpanda:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      control:
-        condition: service_started
-
-  ingest-1:
-    build:
-      context: ../..
-      dockerfile: deploy/ingestion/Dockerfile
-    restart: unless-stopped
-    command: ["uv", "run", "python", "-m", "streaming.massive"]
-    environment:
-      NODE_ID: ingest-1
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
-      KAFKA_BOOTSTRAP: redpanda:9092
-      REDIS_URL: redis://redis:6379
-    depends_on:
-      redpanda:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      control:
-        condition: service_started
-
-  ingest-2:
-    build:
-      context: ../..
-      dockerfile: deploy/ingestion/Dockerfile
-    restart: unless-stopped
-    command: ["uv", "run", "python", "-m", "streaming.massive"]
-    environment:
-      NODE_ID: ingest-2
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
-      KAFKA_BOOTSTRAP: redpanda:9092
-      REDIS_URL: redis://redis:6379
-    depends_on:
-      redpanda:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      control:
-        condition: service_started
 
 volumes:
   postgres_data:

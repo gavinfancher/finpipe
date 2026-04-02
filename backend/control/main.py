@@ -29,7 +29,7 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 POLL_INTERVAL = int(os.environ.get("CONTROL_POLL_INTERVAL", "5"))
 MAX_TICKERS_PER_NODE = 100
-MIN_NODES = 3
+MIN_NODES = int(os.environ.get("MIN_NODES", "3"))
 
 # Redis keys
 ASSIGNMENTS_KEY = "ticker:assignments"        # hash: ticker → node_id

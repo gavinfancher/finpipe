@@ -33,3 +33,4 @@ dagster/logs/
 
 # frontend
 frontend/.vite/
+.claude
