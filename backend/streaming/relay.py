@@ -9,8 +9,8 @@ import os
 
 from aiokafka import AIOKafkaConsumer
 
-from pipeline import state
-from pipeline.enrichment import enrich_tick
+from core import state
+from core.enrichment import enrich_tick
 
 logger = logging.getLogger(__name__)
 

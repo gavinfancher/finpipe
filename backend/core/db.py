@@ -8,7 +8,7 @@ import os
 import asyncpg
 
 from common.postgres import get_all_tickers as _get_all_tickers
-from config import DATABASE_URL
+from core.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +65,7 @@ async def init():
     admin_user = os.environ.get("ADMIN_USER")
     admin_pass = os.environ.get("ADMIN_PASSWORD")
     if admin_user and admin_pass:
-        import auth
+        import core.auth as auth
         pw_hash = auth.hash_password(admin_pass)
         created = await create_user(admin_user, pw_hash)
         if created:

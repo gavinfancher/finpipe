@@ -2,8 +2,8 @@ import logging
 
 from fastapi import APIRouter, WebSocket
 
-import auth
-from pipeline import state
+import core.auth as auth
+from core import state
 
 logger = logging.getLogger(__name__)
 

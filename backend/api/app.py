@@ -12,11 +12,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
-import db
-from logging_config import configure_logging
-from pipeline import relay
-from pipeline.enrichment import init_redis, close_redis, load_all_cached_ticks
-from api.routes import auth, internal, positions, users, ws
+import core.db as db
+from core.logging_config import configure_logging
+from streaming import relay
+from core.enrichment import init_redis, close_redis, load_all_cached_ticks
+from api.external import auth, positions, tickers, ws
+from api.internal import health
 
 configure_logging()
 logger = logging.getLogger(__name__)
@@ -33,7 +34,7 @@ async def lifespan(app: FastAPI):
 
     relay_task = None
     if ENABLE_RELAY:
-        from pipeline import state
+        from core import state
         state.ticks = await load_all_cached_ticks()
         relay_task = asyncio.create_task(relay.run())
         logger.info("startup: relay enabled")
@@ -54,7 +55,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(lifespan=lifespan)
 
-from api.routes.auth import limiter
+from api.external.auth import limiter
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -66,10 +67,10 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/external")
-app.include_router(users.router, prefix="/external")
+app.include_router(tickers.router, prefix="/external")
 app.include_router(positions.router, prefix="/external")
 app.include_router(ws.router)
-app.include_router(internal.router, prefix="/internal")
+app.include_router(health.router, prefix="/internal")
 
 
 @app.get("/external/health")

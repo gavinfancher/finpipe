@@ -5,8 +5,8 @@ Shared FastAPI dependencies.
 from fastapi import Depends, Header, HTTPException
 from fastapi.security import OAuth2PasswordBearer
 
-import auth
-import db
+import core.auth as auth
+import core.db as db
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/external/auth/login")
 oauth2_scheme_optional = OAuth2PasswordBearer(tokenUrl="/external/auth/login", auto_error=False)
