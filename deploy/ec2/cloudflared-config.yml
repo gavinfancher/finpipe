@@ -1,0 +1,9 @@
+tunnel: TUNNEL_ID
+credentials-file: /home/ubuntu/.cloudflared/TUNNEL_ID.json
+
+ingress:
+  - hostname: api.finpipe.app
+    service: http://localhost:8080
+  - hostname: db.finpipe.app
+    service: tcp://finpipe-db.cv08qo42c464.us-east-1.rds.amazonaws.com:5432
+  - service: http_status:404

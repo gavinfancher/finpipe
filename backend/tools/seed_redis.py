@@ -22,7 +22,7 @@ load_dotenv(Path(__file__).parent.parent / ".env")
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("seed_redis")
 
-DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:finpipe-local@localhost:5432/finpipe")
+DATABASE_URL = os.environ["DATABASE_URL"]
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 MASSIVE_API_KEY = os.environ.get("MASSIVE_API_KEY", "")
 

@@ -17,42 +17,48 @@ _pool: asyncpg.Pool | None = None
 async def init():
     global _pool
     _pool = await asyncpg.create_pool(DATABASE_URL)
-    async with _pool.acquire() as conn:
-        await conn.execute("""
-            create table if not exists users (
-                id       serial primary key,
-                username varchar(32) unique not null
-            )
-        """)
-        await conn.execute("""
-            alter table users add column if not exists password_hash text
-        """)
-        await conn.execute("""
-            alter table users add column if not exists api_key_hash text
-        """)
-        await conn.execute("""
-            create table if not exists user_tickers (
-                user_id integer not null references users(id) on delete cascade,
-                ticker  varchar(10) not null,
-                primary key (user_id, ticker)
-            )
-        """)
-        await conn.execute("""
-            create table if not exists positions (
-                id         serial primary key,
-                user_id    integer not null references users(id) on delete cascade,
-                ticker     varchar(10) not null,
-                shares     numeric not null,
-                cost_basis numeric not null,
-                opened_at  timestamptz not null default now()
-            )
-        """)
-        await conn.execute("""
-            alter table users add column if not exists preferences jsonb not null default '{}'
-        """)
-        await conn.execute("""
-            alter table user_tickers add column if not exists sort_order integer not null default 0
-        """)
+
+    # For cloud deploys (RDS), schema is managed via sql/ migration files.
+    # Skip inline schema creation with SKIP_SCHEMA_INIT=true.
+    if os.environ.get("SKIP_SCHEMA_INIT", "false").lower() == "true":
+        logger.info("skipping schema init (SKIP_SCHEMA_INIT=true)")
+    else:
+        async with _pool.acquire() as conn:
+            await conn.execute("""
+                create table if not exists users (
+                    id       serial primary key,
+                    username varchar(32) unique not null
+                )
+            """)
+            await conn.execute("""
+                alter table users add column if not exists password_hash text
+            """)
+            await conn.execute("""
+                alter table users add column if not exists api_key_hash text
+            """)
+            await conn.execute("""
+                create table if not exists user_tickers (
+                    user_id integer not null references users(id) on delete cascade,
+                    ticker  varchar(10) not null,
+                    primary key (user_id, ticker)
+                )
+            """)
+            await conn.execute("""
+                create table if not exists positions (
+                    id         serial primary key,
+                    user_id    integer not null references users(id) on delete cascade,
+                    ticker     varchar(10) not null,
+                    shares     numeric not null,
+                    cost_basis numeric not null,
+                    opened_at  timestamptz not null default now()
+                )
+            """)
+            await conn.execute("""
+                alter table users add column if not exists preferences jsonb not null default '{}'
+            """)
+            await conn.execute("""
+                alter table user_tickers add column if not exists sort_order integer not null default 0
+            """)
 
     # Seed admin user if configured
     admin_user = os.environ.get("ADMIN_USER")

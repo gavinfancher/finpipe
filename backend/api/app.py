@@ -22,6 +22,7 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
+ENABLE_RELAY = os.environ.get("ENABLE_RELAY", "true").lower() == "true"
 
 
 @asynccontextmanager
@@ -30,19 +31,23 @@ async def lifespan(app: FastAPI):
     await init_redis(REDIS_URL)
     logger.info("startup: db and redis initialized")
 
-    # Pre-load cached ticks so dashboard has data even when market is closed
-    from pipeline import state
-    state.ticks = await load_all_cached_ticks()
-
-    relay_task = asyncio.create_task(relay.run())
+    relay_task = None
+    if ENABLE_RELAY:
+        from pipeline import state
+        state.ticks = await load_all_cached_ticks()
+        relay_task = asyncio.create_task(relay.run())
+        logger.info("startup: relay enabled")
+    else:
+        logger.info("startup: relay disabled (ENABLE_RELAY=false)")
 
     yield
 
-    relay_task.cancel()
-    try:
-        await relay_task
-    except (asyncio.CancelledError, Exception):
-        pass
+    if relay_task:
+        relay_task.cancel()
+        try:
+            await relay_task
+        except (asyncio.CancelledError, Exception):
+            pass
     await close_redis()
     await db.close()
 
