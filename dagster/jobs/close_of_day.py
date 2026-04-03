@@ -15,8 +15,10 @@ Usage:
 import time
 from datetime import date, timedelta
 
-import pandas_market_calendars as mcal
 import pendulum
+from common.market import PERF_PERIODS, fetch_close, trading_dates
+from common.postgres import get_all_tickers
+from common.redis_keys import PERF_KEY, PREV_CLOSE_KEY
 from dagster import (
     Out,
     ScheduleDefinition,
@@ -26,71 +28,9 @@ from dagster import (
 )
 from massive import RESTClient
 
-PREV_CLOSE_KEY = "ticker:prev_close:{}"
-PERF_KEY = "ticker:perf:{}"
-
-# Performance periods: label → approximate calendar days lookback
-_PERF_PERIODS = {
-    "5d": 10,
-    "1m": 35,
-    "3m": 100,
-    "6m": 200,
-    "1y": 370,
-    "ytd": None,
-    "3y": 1100,
-}
-
-
-def _trading_dates() -> dict[str, date]:
-    """Compute reference trading dates for perf calculations."""
-    nyse = mcal.get_calendar("NYSE")
-    today = date.today()
-
-    start = today - timedelta(days=1200)
-    schedule = nyse.schedule(start_date=start, end_date=today)
-    days = [d.date() for d in schedule.index]
-
-    if not days:
-        return {}
-
-    result: dict[str, date] = {}
-    result["prev"] = days[-1]
-
-    for label, lookback in _PERF_PERIODS.items():
-        if label == "ytd":
-            year_start = date(today.year, 1, 1)
-            ytd_days = [d for d in days if d >= year_start]
-            if ytd_days:
-                result["ytd"] = ytd_days[0]
-        else:
-            target = today - timedelta(days=lookback)
-            candidates = [d for d in days if d >= target]
-            if candidates:
-                result[label] = candidates[0]
-
-    return result
-
-
-def _fetch_close(client: RESTClient, ticker: str, d: date) -> float | None:
-    """Fetch closing price for a ticker on a specific date."""
-    try:
-        aggs = client.get_aggs(
-            ticker=ticker,
-            multiplier=1,
-            timespan="day",
-            from_=d,
-            to=d,
-            limit=1,
-        )
-        if aggs and len(aggs) > 0:
-            return aggs[0].close
-    except Exception as e:
-        get_dagster_logger().warning("failed to fetch %s on %s: %s", ticker, d, e)
-    return None
-
 
 @op(out=Out(list))
-def get_tickers():
+def get_tickers_op():
     """Get all unique tickers from PostgreSQL."""
     import asyncio
     import os
@@ -103,13 +43,7 @@ def get_tickers():
     async def _fetch():
         conn = await asyncpg.connect(database_url)
         try:
-            rows = await conn.fetch("""
-                select distinct ticker from user_tickers
-                union
-                select distinct ticker from positions
-                order by ticker
-            """)
-            return [r["ticker"] for r in rows]
+            return await get_all_tickers(conn)
         finally:
             await conn.close()
 
@@ -122,7 +56,7 @@ def get_tickers():
 def compute_reference_dates() -> dict:
     """Compute trading reference dates for perf calculations."""
     log = get_dagster_logger()
-    ref = _trading_dates()
+    ref = trading_dates()
     log.info("reference dates: %s", {k: str(v) for k, v in ref.items()})
     return {k: v.isoformat() for k, v in ref.items()}
 
@@ -151,16 +85,16 @@ def fetch_and_cache_closes(tickers: list, ref_dates_raw: dict):
             # Previous close
             prev_date = ref_dates.get("prev")
             if prev_date:
-                prev_close = _fetch_close(client, ticker, prev_date)
+                prev_close = fetch_close(client, ticker, prev_date)
                 if prev_close is not None:
                     rdb.set(PREV_CLOSE_KEY.format(ticker), str(prev_close))
 
             # Perf reference closes
             perf_data: dict[str, str] = {}
-            for label in _PERF_PERIODS:
+            for label in PERF_PERIODS:
                 ref_date = ref_dates.get(label)
                 if ref_date:
-                    close = _fetch_close(client, ticker, ref_date)
+                    close = fetch_close(client, ticker, ref_date)
                     if close is not None:
                         perf_data[label] = str(close)
 
@@ -181,7 +115,7 @@ def fetch_and_cache_closes(tickers: list, ref_dates_raw: dict):
 
 @graph
 def close_of_day_graph():
-    tickers = get_tickers()
+    tickers = get_tickers_op()
     ref_dates = compute_reference_dates()
     fetch_and_cache_closes(tickers=tickers, ref_dates_raw=ref_dates)
 

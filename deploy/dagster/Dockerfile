@@ -6,7 +6,11 @@ COPY --from=uv /uv /uvx /bin/
 WORKDIR /opt/dagster/app
 
 # Copy dependency files first for layer caching
+COPY common/pyproject.toml /common/pyproject.toml
 COPY dagster/pyproject.toml ./
+
+# Copy shared library
+COPY common/ /common/
 
 # Copy application code
 COPY dagster/definitions.py ./

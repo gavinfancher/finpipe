@@ -12,8 +12,10 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import asyncpg
-import pandas_market_calendars as mcal
 import redis
+from common.market import PERF_PERIODS, fetch_close, trading_dates
+from common.postgres import get_all_tickers
+from common.redis_keys import PERF_KEY, PREV_CLOSE_KEY, PRICE_KEY
 from dotenv import load_dotenv
 from massive import RESTClient
 
@@ -26,74 +28,10 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 MASSIVE_API_KEY = os.environ.get("MASSIVE_API_KEY", "")
 
-PREV_CLOSE_KEY = "ticker:prev_close:{}"
-PERF_KEY = "ticker:perf:{}"
-PRICE_KEY = "ticker:prices:{}"
-
-_PERF_PERIODS = {
-    "5d": 10,
-    "1m": 35,
-    "3m": 100,
-    "6m": 200,
-    "1y": 370,
-    "ytd": None,
-    "3y": 1100,
-}
-
-
-def trading_dates() -> dict[str, date]:
-    nyse = mcal.get_calendar("NYSE")
-    today = date.today()
-    start = today - timedelta(days=1200)
-    schedule = nyse.schedule(start_date=start, end_date=today)
-    days = [d.date() for d in schedule.index]
-    if not days:
-        return {}
-
-    result: dict[str, date] = {}
-
-    # "prev" = last trading day's close (baseline for daily change calculation)
-    # "last" = same as prev (kept for snapshot seeding below)
-    if len(days) >= 2:
-        result["prev"] = days[-1]
-        result["last"] = days[-1]
-    elif len(days) == 1:
-        result["prev"] = days[-1]
-        result["last"] = days[-1]
-
-    for label, lookback in _PERF_PERIODS.items():
-        if label == "ytd":
-            year_start = date(today.year, 1, 1)
-            ytd_days = [d for d in days if d >= year_start]
-            if ytd_days:
-                result["ytd"] = ytd_days[0]
-        else:
-            target = today - timedelta(days=lookback)
-            candidates = [d for d in days if d >= target]
-            if candidates:
-                result[label] = candidates[0]
-    return result
-
-
-def fetch_close(client: RESTClient, ticker: str, d: date) -> float | None:
-    try:
-        aggs = client.get_aggs(ticker=ticker, multiplier=1, timespan="day", from_=d, to=d, limit=1)
-        if aggs and len(aggs) > 0:
-            return aggs[0].close
-    except Exception as e:
-        log.warning("failed %s on %s: %s", ticker, d, e)
-    return None
-
 
 async def main():
     conn = await asyncpg.connect(DATABASE_URL)
-    rows = await conn.fetch("""
-        select distinct ticker from user_tickers
-        union
-        select distinct ticker from positions
-        order by ticker
-    """)
-    tickers = [r["ticker"] for r in rows]
+    tickers = await get_all_tickers(conn)
     await conn.close()
 
     if not tickers:
@@ -121,7 +59,7 @@ async def main():
 
         # Perf reference closes
         perf_data: dict[str, str] = {}
-        for label in _PERF_PERIODS:
+        for label in PERF_PERIODS:
             ref_date = ref_dates.get(label)
             if ref_date:
                 close = fetch_close(client, ticker, ref_date)

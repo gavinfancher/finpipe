@@ -15,6 +15,7 @@ import os
 import redis.asyncio as aioredis
 from aiokafka import AIOKafkaProducer
 from massive import WebSocketClient
+from common.redis_keys import ASSIGNMENTS_KEY, CHANNEL
 from massive.websocket.models import EquityAgg, Feed, Market
 
 logging.basicConfig(
@@ -28,8 +29,6 @@ KAFKA_BOOTSTRAP = os.environ.get("KAFKA_BOOTSTRAP", "localhost:9092")
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 NODE_ID = os.environ.get("NODE_ID", "ingest-0")
 TOPIC = "market-ticks"
-CHANNEL = "control:assignments"
-ASSIGNMENTS_KEY = "ticker:assignments"
 
 client = WebSocketClient(
     api_key=MASSIVE_API_KEY,

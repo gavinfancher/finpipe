@@ -13,7 +13,11 @@ dependencies = [
     "massive>=2.3.2",
     "pandas-market-calendars>=5.3.1.2",
     "redis>=5.0.0",
+    "finpipe-common",
 ]
+
+[tool.uv.sources]
+finpipe-common = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

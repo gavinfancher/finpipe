@@ -9,18 +9,18 @@ import os
 from datetime import date, timedelta
 
 import redis.asyncio as aioredis
+from common.market import PERF_PERIODS, trading_dates
+from common.redis_keys import (
+    CLOSE_FIELDS,
+    PERF_FIELDS,
+    PERF_KEY,
+    PREV_CLOSE_KEY,
+    PRICE_KEY,
+)
 
 logger = logging.getLogger(__name__)
 
 _rdb: aioredis.Redis | None = None
-
-# Redis key patterns
-PREV_CLOSE_KEY = "ticker:prev_close:{}"
-PERF_KEY = "ticker:perf:{}"
-PRICE_KEY = "ticker:prices:{}"
-
-_PERF_FIELDS = ("perf5d", "perf1m", "perf3m", "perf6m", "perf1y", "perfYtd", "perf3y")
-_CLOSE_FIELDS = ("5d", "1m", "3m", "6m", "1y", "ytd", "3y")
 
 
 async def init_redis(redis_url: str):
@@ -54,7 +54,7 @@ async def enrich_tick(tick: dict) -> dict:
     # Get perf reference closes from Redis
     perf_data = await _rdb.hgetall(PERF_KEY.format(ticker))
     if perf_data:
-        for perf_field, close_field in zip(_PERF_FIELDS, _CLOSE_FIELDS):
+        for perf_field, close_field in zip(PERF_FIELDS, CLOSE_FIELDS):
             ref_str = perf_data.get(close_field)
             if ref_str:
                 ref = float(ref_str)
@@ -105,7 +105,7 @@ async def add_perf_fields(tick: dict) -> dict:
 
     perf_data = await _rdb.hgetall(PERF_KEY.format(ticker))
     if perf_data:
-        for perf_field, close_field in zip(_PERF_FIELDS, _CLOSE_FIELDS):
+        for perf_field, close_field in zip(PERF_FIELDS, CLOSE_FIELDS):
             ref_str = perf_data.get(close_field)
             if ref_str:
                 ref = float(ref_str)
@@ -188,37 +188,8 @@ async def fetch_and_cache_ticker(ticker: str) -> dict | None:
             "timestamp": str(timestamp),
         })
 
-        # Fetch perf reference closes using historical aggs
-        import pandas_market_calendars as mcal
-
-        perf_periods = {
-            "5d": 10, "1m": 35, "3m": 100, "6m": 200,
-            "1y": 370, "ytd": None, "3y": 1100,
-        }
-
-        def _compute_ref_dates():
-            nyse = mcal.get_calendar("NYSE")
-            today = date.today()
-            start = today - timedelta(days=1200)
-            schedule = nyse.schedule(start_date=start, end_date=today)
-            days = [d.date() for d in schedule.index]
-            if not days:
-                return {}
-            refs = {}
-            for label, lookback in perf_periods.items():
-                if label == "ytd":
-                    year_start = date(today.year, 1, 1)
-                    ytd_days = [d for d in days if d >= year_start]
-                    if ytd_days:
-                        refs["ytd"] = ytd_days[0]
-                else:
-                    target = today - timedelta(days=lookback)
-                    candidates = [d for d in days if d >= target]
-                    if candidates:
-                        refs[label] = candidates[0]
-            return refs
-
-        ref_dates = await loop.run_in_executor(None, _compute_ref_dates)
+        # Fetch perf reference closes using shared trading calendar
+        ref_dates = await loop.run_in_executor(None, trading_dates)
 
         perf_data: dict[str, str] = {}
         for label, ref_date in ref_dates.items():

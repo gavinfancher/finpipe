@@ -7,6 +7,7 @@ import os
 
 import asyncpg
 
+from common.postgres import get_all_tickers as _get_all_tickers
 from config import DATABASE_URL
 
 logger = logging.getLogger(__name__)
@@ -311,12 +312,4 @@ async def reorder_tickers(username: str, tickers: list[str]):
 async def get_all_tickers() -> list[str]:
     """Union of watchlist and position tickers across all users — used for warm startup."""
     async with _pool.acquire() as conn:
-        rows = await conn.fetch(
-            """
-            select distinct ticker from user_tickers
-            union
-            select distinct ticker from positions
-            order by ticker
-            """
-        )
-    return [r["ticker"] for r in rows]
+        return await _get_all_tickers(conn)

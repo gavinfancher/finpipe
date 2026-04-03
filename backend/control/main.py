@@ -18,6 +18,8 @@ import os
 
 import asyncpg
 import redis.asyncio as aioredis
+from common.postgres import get_all_tickers as _get_all_tickers
+from common.redis_keys import ASSIGNMENTS_KEY, CHANNEL, NODE_COUNT_KEY
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,10 +33,6 @@ POLL_INTERVAL = int(os.environ.get("CONTROL_POLL_INTERVAL", "5"))
 MAX_TICKERS_PER_NODE = 100
 MIN_NODES = int(os.environ.get("MIN_NODES", "3"))
 
-# Redis keys
-ASSIGNMENTS_KEY = "ticker:assignments"        # hash: ticker → node_id
-NODE_COUNT_KEY = "control:node_count"          # int: how many ingest nodes
-CHANNEL = "control:assignments"               # pub/sub channel
 
 
 def compute_node_count(ticker_count: int) -> int:
@@ -58,13 +56,7 @@ def assign_tickers(tickers: list[str], node_count: int) -> dict[str, list[str]]:
 async def get_all_tickers(pool: asyncpg.Pool) -> list[str]:
     """Get all unique tickers across all users."""
     async with pool.acquire() as conn:
-        rows = await conn.fetch("""
-            select distinct ticker from user_tickers
-            union
-            select distinct ticker from positions
-            order by ticker
-        """)
-    return [r["ticker"] for r in rows]
+        return await _get_all_tickers(conn)
 
 
 async def sync_assignments(pool: asyncpg.Pool, rdb: aioredis.Redis):

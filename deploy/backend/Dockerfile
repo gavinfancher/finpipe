@@ -3,8 +3,12 @@ FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim
 WORKDIR /app
 
 # Copy dependency files first for layer caching
+COPY common/pyproject.toml /common/pyproject.toml
 COPY backend/pyproject.toml ./
 RUN uv sync --no-dev --no-install-project
+
+# Copy shared library
+COPY common/ /common/
 
 # Copy all application code
 COPY backend/api/ api/

@@ -22,51 +22,15 @@ from pathlib import Path
 
 import boto3
 import pyarrow as pa
-import pyarrow.csv as pa_csv
 import pyarrow.parquet as pq
 from botocore.config import Config
+from common.schemas import BRONZE_SCHEMA, CSV_CONVERT_OPTS, CSV_READ_OPTS, MASSIVE_COLUMNS
 
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s %(levelname)s %(message)s',
 )
 log = logging.getLogger(__name__)
-
-BRONZE_SCHEMA = pa.schema([
-    ('ticker', pa.string()),
-    ('volume', pa.float64()),
-    ('open', pa.float64()),
-    ('close', pa.float64()),
-    ('high', pa.float64()),
-    ('low', pa.float64()),
-    ('window_start', pa.int64()),
-    ('transactions', pa.int64()),
-    ('otc', pa.string()),
-    ('date', pa.string()),
-])
-
-MASSIVE_COLUMNS = [
-    'ticker', 'volume', 'open', 'close', 'high', 'low',
-    'window_start', 'transactions', 'otc',
-]
-
-# tell pyarrow the column types upfront — skips type inference on every file
-CSV_CONVERT_OPTS = pa_csv.ConvertOptions(
-    column_types={
-        'ticker': pa.string(),
-        'volume': pa.float64(),
-        'open': pa.float64(),
-        'close': pa.float64(),
-        'high': pa.float64(),
-        'low': pa.float64(),
-        'window_start': pa.int64(),
-        'transactions': pa.int64(),
-        'otc': pa.string(),
-    },
-)
-
-# only read the columns we need — skip any extras Massive includes
-CSV_READ_OPTS = pa_csv.ReadOptions(block_size=1 << 20)  # 1 MB read blocks
 
 PREFIX = 'us_stocks_sip/minute_aggs_v1'
 MAX_RETRIES = 3

@@ -17,6 +17,7 @@ resolution-markers = [
 members = [
     "finpipe",
     "finpipe-backend",
+    "finpipe-common",
     "finpipe-dagster",
 ]
 
@@ -547,6 +548,7 @@ dependencies = [
     { name = "bcrypt" },
     { name = "boto3" },
     { name = "fastapi" },
+    { name = "finpipe-common" },
     { name = "httpx" },
     { name = "massive" },
     { name = "pandas-market-calendars" },
@@ -566,6 +568,7 @@ requires-dist = [
     { name = "bcrypt", specifier = ">=5.0.0" },
     { name = "boto3", specifier = ">=1.35" },
     { name = "fastapi", specifier = ">=0.115.0" },
+    { name = "finpipe-common", editable = "common" },
     { name = "httpx", specifier = ">=0.28.0" },
     { name = "massive", specifier = ">=2.3.2" },
     { name = "pandas-market-calendars", specifier = ">=5.3.1.2" },
@@ -579,6 +582,23 @@ requires-dist = [
 ]
 
 [[package]]
+name = "finpipe-common"
+version = "0.1.0"
+source = { editable = "common" }
+dependencies = [
+    { name = "massive" },
+    { name = "pandas-market-calendars" },
+    { name = "pyarrow" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "massive", specifier = ">=2.3.2" },
+    { name = "pandas-market-calendars", specifier = ">=5.3.1.2" },
+    { name = "pyarrow", specifier = ">=18.0" },
+]
+
+[[package]]
 name = "finpipe-dagster"
 version = "0.1.0"
 source = { editable = "dagster" }
@@ -587,6 +607,7 @@ dependencies = [
     { name = "boto3" },
     { name = "dagster" },
     { name = "dagster-webserver" },
+    { name = "finpipe-common" },
     { name = "massive" },
     { name = "pandas-market-calendars" },
     { name = "pendulum" },
@@ -600,6 +621,7 @@ requires-dist = [
     { name = "boto3", specifier = ">=1.35" },
     { name = "dagster", specifier = ">=1.9" },
     { name = "dagster-webserver", specifier = ">=1.9" },
+    { name = "finpipe-common", editable = "common" },
     { name = "massive", specifier = ">=2.3.2" },
     { name = "pandas-market-calendars", specifier = ">=5.3.1.2" },
     { name = "pendulum", specifier = ">=3.2.0" },
