@@ -1,10 +1,12 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import Logo from "./Logo";
 import { getCurrentUsername, clearCurrentUsername, clearToken } from "../store/userStore";
 
 export default function NavBar() {
   const navigate = useNavigate();
+  const location = useLocation();
   const user = getCurrentUsername();
+  const onDashboard = location.pathname === "/dashboard";
 
   function handleLogout() {
     clearCurrentUsername();
@@ -25,7 +27,7 @@ export default function NavBar() {
       <div className="site-nav__right">
         {user ? (
           <>
-            <Link to="/dashboard" className="btn-primary btn-primary--sm">dashboard</Link>
+            {!onDashboard && <Link to="/dashboard" className="btn-primary btn-primary--sm">dashboard</Link>}
             <button className="btn-ghost btn-ghost--sm" onClick={handleLogout}>sign out</button>
           </>
         ) : (
