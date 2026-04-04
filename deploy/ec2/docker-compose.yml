@@ -81,7 +81,7 @@ services:
       redpanda:
         condition: service_healthy
 
-  ingest-0:
+  ingest:
     build:
       context: ../..
       dockerfile: deploy/backend/Dockerfile
@@ -92,7 +92,6 @@ services:
       KAFKA_BOOTSTRAP: redpanda:9092
       REDIS_URL: ${REDIS_URL}
       CONTROL_URL: http://control:8081
-      NODE_ID: ingest-0
     depends_on:
       redpanda:
         condition: service_healthy
