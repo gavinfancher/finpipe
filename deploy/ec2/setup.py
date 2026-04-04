@@ -58,13 +58,17 @@ def create():
     os.chmod(ENV_PATH, 0o600)
     print(f"wrote {ENV_PATH} ({len(env)} vars)")
 
-    # cloudflared tunnel credentials
-    creds_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cloudflared-credentials.json")
-    creds = get_secret("finpipe/cloudflared-credentials")
-    with open(creds_path, "w") as f:
-        f.write(creds)
-    os.chmod(creds_path, 0o600)
-    print(f"wrote {creds_path}")
+    # cloudflared tunnel credentials + cert
+    ec2_dir = os.path.dirname(os.path.abspath(__file__))
+    for filename, secret in [
+        ("cloudflared-credentials.json", "finpipe/cloudflared-credentials"),
+        ("cloudflared-cert.pem", "finpipe/cloudflared-cert"),
+    ]:
+        path = os.path.join(ec2_dir, filename)
+        with open(path, "w") as f:
+            f.write(get_secret(secret))
+        os.chmod(path, 0o644)
+        print(f"wrote {path}")
 
 
 if __name__ == "__main__":

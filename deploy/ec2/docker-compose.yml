@@ -37,6 +37,7 @@ services:
     volumes:
       - ./cloudflared-config.yml:/etc/cloudflared/config.yml:ro
       - ./cloudflared-credentials.json:/etc/cloudflared/credentials.json:ro
+      - ./cloudflared-cert.pem:/etc/cloudflared/cert.pem:ro
     depends_on:
       ws-relay:
         condition: service_started
@@ -74,11 +75,29 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
       CONTROL_POLL_INTERVAL: "5"
-      MIN_NODES: "3"
+      MIN_NODES: "1"
       CONTROL_PORT: "8081"
     depends_on:
       redpanda:
         condition: service_healthy
+
+  ingest-0:
+    build:
+      context: ../..
+      dockerfile: deploy/backend/Dockerfile
+    command: ["uv", "run", "python", "-m", "streaming.ingest"]
+    restart: unless-stopped
+    environment:
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      KAFKA_BOOTSTRAP: redpanda:9092
+      REDIS_URL: ${REDIS_URL}
+      CONTROL_URL: http://control:8081
+      NODE_ID: ingest-0
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      control:
+        condition: service_started
 
 volumes:
   redpanda_data:

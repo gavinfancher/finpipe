@@ -1,5 +1,6 @@
 tunnel: ad360029-e242-4123-888d-f156fc0bc701
 credentials-file: /etc/cloudflared/credentials.json
+origincert: /etc/cloudflared/cert.pem
 
 ingress:
   - hostname: api.finpipe.app
