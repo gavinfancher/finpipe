@@ -3,7 +3,7 @@ Create the finpipe-ec2-sg security group.
 
 Rules:
   - Inbound: SSH (22), ECS ingest → 9092 (Redpanda) + 8081 (control API)
-  - Outbound: HTTPS, HTTP, 5432 → RDS, 6379 → Valkey
+  - Outbound: HTTPS, HTTP, UDP 7844 (cloudflared), 5432 → RDS, 6379 → Valkey
 
 Cross-links to finpipe-rds-sg, finpipe-valkey-sg, and finpipe-ecs-ingest-sg
 when they exist. Also adds corresponding ingress rules on RDS/Valkey SGs.
@@ -83,7 +83,7 @@ def create() -> str:
         }],
     )
 
-    # HTTPS — cloudflared tunnel, docker pulls, SSM, AWS APIs
+    # HTTPS — docker pulls, SSM, AWS APIs
     ec2.authorize_security_group_egress(
         GroupId=sg_id,
         IpPermissions=[{
@@ -94,11 +94,11 @@ def create() -> str:
         }],
     )
 
-    # Cloudflared tunnel — QUIC connection to Cloudflare edge
+    # Cloudflared tunnel — QUIC to Cloudflare edge
     ec2.authorize_security_group_egress(
         GroupId=sg_id,
         IpPermissions=[{
-            "IpProtocol": "tcp",
+            "IpProtocol": "udp",
             "FromPort": 7844,
             "ToPort": 7844,
             "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
@@ -115,7 +115,7 @@ def create() -> str:
             "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
         }],
     )
-    print("  egress: 443, 80 → internet")
+    print("  egress: 443, 7844/udp, 80 → internet")
 
     # Postgres → RDS
     rds_sg_id = find_sg("finpipe-rds-sg")

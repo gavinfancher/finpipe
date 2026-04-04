@@ -1,24 +1,7 @@
-# Cloudflare Tunnel ingress rules for finpipe EC2 core node.
-#
-# These rules are configured in the Cloudflare Zero Trust dashboard
-# when using the token-based approach (CLOUDFLARE_TUNNEL_TOKEN).
-#
-# If using the config-file approach instead, place this file at
-# /home/ubuntu/.cloudflared/config.yml on the EC2 instance.
-
-tunnel: TUNNEL_ID
-credentials-file: /home/ubuntu/.cloudflared/TUNNEL_ID.json
+tunnel: ad360029-e242-4123-888d-f156fc0bc701
+credentials-file: /etc/cloudflared/credentials.json
 
 ingress:
-  # API + WebSocket relay
   - hostname: api.finpipe.app
     service: http://ws-relay:8080
-    originRequest:
-      noTLSVerify: true
-
-  # RDS passthrough (pgcli from laptop)
-  - hostname: db.finpipe.app
-    service: tcp://YOUR_RDS_ENDPOINT:5432
-
-  # Catch-all
   - service: http_status:404

@@ -2,11 +2,10 @@
 Create the finpipe-ec2-role IAM role and instance profile.
 
 Policies:
-  - Secrets Manager (pull .env + tunnel token)
-  - RDS describe (resolve endpoint in user-data)
-  - ECS scaling (control node scales ingest service)
-  - ECR pull (docker pull backend image)
-  - SSM (remote shell access, no SSH needed)
+  - Secrets Manager (pull .env + tunnel credentials)
+  - RDS describe (resolve endpoint in setup.py)
+  - ElastiCache describe (resolve Valkey endpoint in setup.py)
+  - SSM (remote shell access)
 
 Usage:
     uv run python deploy/aws/ec2/control/iam.py
@@ -87,55 +86,13 @@ def create() -> str:
         }),
     )
 
-    # ecs scaling
-    iam.put_role_policy(
-        RoleName=ROLE_NAME,
-        PolicyName="ecs-ingest-scaling",
-        PolicyDocument=json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [{
-                "Effect": "Allow",
-                "Action": [
-                    "ecs:DescribeServices",
-                    "ecs:UpdateService",
-                ],
-                "Resource": f"arn:aws:ecs:{REGION}:{ACCOUNT_ID}:service/finpipe/ingest",
-            }],
-        }),
-    )
-
-    # ecr pull
-    iam.put_role_policy(
-        RoleName=ROLE_NAME,
-        PolicyName="ecr-pull",
-        PolicyDocument=json.dumps({
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Action": [
-                        "ecr:GetDownloadUrlForLayer",
-                        "ecr:BatchGetImage",
-                        "ecr:BatchCheckLayerAvailability",
-                    ],
-                    "Resource": f"arn:aws:ecr:{REGION}:{ACCOUNT_ID}:repository/finpipe-backend",
-                },
-                {
-                    "Effect": "Allow",
-                    "Action": "ecr:GetAuthorizationToken",
-                    "Resource": "*",
-                },
-            ],
-        }),
-    )
-
     # ssm
     iam.attach_role_policy(
         RoleName=ROLE_NAME,
         PolicyArn="arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
     )
 
-    print("  policies: secrets, rds, ecs, ecr, ssm")
+    print("  policies: secrets, rds, elasticache, ssm")
 
     # --- instance profile ---
 

@@ -49,13 +49,9 @@ uv run python deploy/ec2/setup.py
 chown ubuntu:ubuntu deploy/ec2/.env
 echo "  .env ready"
 
-# --- ECR login + start services ---
-
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-ECR_REGISTRY="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com"
-aws ecr get-login-password --region "$REGION" | docker login --username AWS --password-stdin "$ECR_REGISTRY"
+# --- build + start services ---
 
 cd /home/ubuntu/finpipe/deploy/ec2
-docker compose up -d
+docker compose up --build -d
 
 echo "=== finpipe ec2 bootstrap complete ==="

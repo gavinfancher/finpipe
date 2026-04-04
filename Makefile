@@ -3,9 +3,10 @@ EC2_COMPOSE = docker compose -f deploy/ec2/docker-compose.yml --env-file .env
 
 .PHONY: dev dev-build dev-down dev-logs dev-ps \
         rds-status rds-migrate rds-stop rds-start \
-        ec2-setup ec2-status ec2-ssh ec2-logs ec2-stop ec2-start \
-        ecs-setup ecs-status ecs-logs ecs-scale ecs-deploy \
+        deploy ec2-deploy ec2-setup ec2-status ec2-ssh ec2-logs ec2-stop ec2-start \
         switch-ec2 switch-home db-tunnel
+
+deploy: ec2-deploy
 
 # --- local dev ---
 
@@ -45,8 +46,20 @@ rds-start:
 
 # --- EC2 ---
 
+EC2_HOST = ubuntu@$(shell aws ec2 describe-instances \
+	--filters "Name=tag:Name,Values=finpipe-streaming" "Name=instance-state-name,Values=running" \
+	--query 'Reservations[0].Instances[0].PublicIpAddress' --output text)
+EC2_SSH = ssh -i ~/.ssh/macbook-pro-key $(EC2_HOST)
+
+ec2-deploy:
+	@echo "deploying to EC2..."
+	$(EC2_SSH) "cd /home/ubuntu/finpipe && git pull && cd deploy/ec2 && sudo docker compose up --build -d"
+	@echo "done"
+
 ec2-setup:
-	uv run python deploy/aws/ec2.py
+	uv run python deploy/aws/ec2/control/iam.py
+	uv run python deploy/aws/ec2/control/sg.py
+	uv run python deploy/aws/ec2/control/instance.py
 
 ec2-status:
 	@aws ec2 describe-instances \

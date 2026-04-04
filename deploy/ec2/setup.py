@@ -33,10 +33,6 @@ def get_valkey_endpoint() -> str:
     return resp["ReplicationGroups"][0]["NodeGroups"][0]["PrimaryEndpoint"]["Address"]
 
 
-def get_ecr_image() -> str:
-    account_id = boto3.client("sts", region_name=REGION).get_caller_identity()["Account"]
-    return f"{account_id}.dkr.ecr.{REGION}.amazonaws.com/finpipe-backend:latest"
-
 
 def create():
     print("resolving endpoints...")
@@ -53,8 +49,6 @@ def create():
         "MASSIVE_API_KEY": get_secret("finpipe/massive"),
         "ADMIN_USER": "admin",
         "ADMIN_PASSWORD": get_secret("finpipe/admin-password"),
-        "CLOUDFLARE_TUNNEL_TOKEN": get_secret("finpipe/cloudflare-tunnel-token"),
-        "ECR_IMAGE": get_ecr_image(),
     }
 
     with open(ENV_PATH, "w") as f:
@@ -63,6 +57,14 @@ def create():
 
     os.chmod(ENV_PATH, 0o600)
     print(f"wrote {ENV_PATH} ({len(env)} vars)")
+
+    # cloudflared tunnel credentials
+    creds_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cloudflared-credentials.json")
+    creds = get_secret("finpipe/cloudflared-credentials")
+    with open(creds_path, "w") as f:
+        f.write(creds)
+    os.chmod(creds_path, 0o600)
+    print(f"wrote {creds_path}")
 
 
 if __name__ == "__main__":
