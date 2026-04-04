@@ -536,7 +536,13 @@ wheels = [
 [[package]]
 name = "finpipe"
 version = "0.1.0"
-source = { virtual = "." }
+source = { editable = "." }
+dependencies = [
+    { name = "boto3" },
+]
+
+[package.metadata]
+requires-dist = [{ name = "boto3" }]
 
 [[package]]
 name = "finpipe-backend"

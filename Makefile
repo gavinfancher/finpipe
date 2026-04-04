@@ -3,7 +3,8 @@ EC2_COMPOSE = docker compose -f deploy/ec2/docker-compose.yml --env-file .env
 
 .PHONY: dev dev-build dev-down dev-logs dev-ps \
         rds-status rds-migrate rds-stop rds-start \
-        ec2-setup ec2-launch ec2-status ec2-ssh ec2-logs \
+        ec2-setup ec2-status ec2-ssh ec2-logs ec2-stop ec2-start \
+        ecs-setup ecs-status ecs-logs ecs-scale ecs-deploy \
         switch-ec2 switch-home db-tunnel
 
 # --- local dev ---
@@ -45,25 +46,12 @@ rds-start:
 # --- EC2 ---
 
 ec2-setup:
-	uv run python deploy/ec2/setup_aws.py
-
-ec2-launch:
-	@aws ec2 run-instances \
-		--image-id $$(aws ssm get-parameters --names /aws/service/canonical/ubuntu/server/24.04/stable/current/amd64/hvm/ebs-gp3/ami-id \
-			--query 'Parameters[0].Value' --output text) \
-		--instance-type t3.medium \
-		--iam-instance-profile Name=finpipe-ec2-profile \
-		--security-group-ids $$(aws ec2 describe-security-groups --filters Name=group-name,Values=finpipe-ec2-sg \
-			--query 'SecurityGroups[0].GroupId' --output text) \
-		--subnet-id subnet-074afec090850ea1a \
-		--user-data file://deploy/ec2/user-data.sh \
-		--tag-specifications 'ResourceType=instance,Tags=[{Key=Name,Value=finpipe-streaming}]' \
-		--query 'Instances[0].InstanceId' --output text
+	uv run python deploy/aws/ec2.py
 
 ec2-status:
 	@aws ec2 describe-instances \
-		--filters "Name=tag:Name,Values=finpipe-streaming" "Name=instance-state-name,Values=running,pending" \
-		--query 'Reservations[*].Instances[*].[InstanceId,State.Name,PublicIpAddress,LaunchTime]' \
+		--filters "Name=tag:Name,Values=finpipe-streaming" "Name=instance-state-name,Values=running,pending,stopped" \
+		--query 'Reservations[*].Instances[*].[InstanceId,State.Name,PrivateIpAddress,LaunchTime]' \
 		--output table
 
 ec2-ssh:
@@ -78,7 +66,49 @@ ec2-logs:
 		--query 'Reservations[0].Instances[0].InstanceId' --output text) && \
 	aws ssm start-session --target $$instance_id \
 		--document-name AWS-StartInteractiveCommand \
-		--parameters command="cat /var/log/finpipe-setup.log"
+		--parameters command="tail -50 /var/log/finpipe-setup.log"
+
+ec2-stop:
+	@instance_id=$$(aws ec2 describe-instances \
+		--filters "Name=tag:Name,Values=finpipe-streaming" "Name=instance-state-name,Values=running" \
+		--query 'Reservations[0].Instances[0].InstanceId' --output text) && \
+	aws ec2 stop-instances --instance-ids $$instance_id --output text --query 'StoppingInstances[0].CurrentState.Name'
+
+ec2-start:
+	@instance_id=$$(aws ec2 describe-instances \
+		--filters "Name=tag:Name,Values=finpipe-streaming" "Name=instance-state-name,Values=stopped" \
+		--query 'Reservations[0].Instances[0].InstanceId' --output text) && \
+	aws ec2 start-instances --instance-ids $$instance_id --output text --query 'StartingInstances[0].CurrentState.Name'
+
+# --- ECS Fargate ingest ---
+
+ecs-setup:
+	uv run python deploy/aws/ecs.py
+
+ecs-status:
+	@aws ecs describe-services --cluster finpipe --services ingest \
+		--query 'services[0].[status,desiredCount,runningCount,pendingCount]' \
+		--output table
+
+ecs-logs:
+	@aws logs tail /ecs/finpipe-ingest --follow
+
+ecs-scale:
+	@echo "current:" && \
+	aws ecs describe-services --cluster finpipe --services ingest \
+		--query 'services[0].{desired:desiredCount,running:runningCount}' --output table
+
+ECR_REPO = $(shell aws sts get-caller-identity --query Account --output text).dkr.ecr.us-east-1.amazonaws.com/finpipe-backend
+
+ecs-deploy:
+	@echo "building + pushing image..."
+	docker build -t $(ECR_REPO):latest -f deploy/backend/Dockerfile .
+	aws ecr get-login-password --region us-east-1 | docker login --username AWS --password-stdin $(ECR_REPO)
+	docker push $(ECR_REPO):latest
+	@echo "forcing new deployment..."
+	aws ecs update-service --cluster finpipe --service ingest --force-new-deployment \
+		--query 'service.deployments[0].{status:status,desired:desiredCount,running:runningCount}' --output table
+	@echo "done — ECS will roll new tasks over the next few minutes"
 
 # --- tunnel switchover ---
 

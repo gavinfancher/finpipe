@@ -7,6 +7,7 @@ Usage:
 """
 
 import argparse
+import os
 import subprocess
 import sys
 import time
@@ -18,10 +19,10 @@ EC2_CONFIG = {
     "InstanceType": "c5n.4xlarge",
     "MinCount": 1,
     "MaxCount": 1,
-    "KeyName": "macbook-pro-key",
+    "KeyName": os.environ.get("EC2_KEY_NAME", ""),
     "IamInstanceProfile": {"Name": "backfill-ec2-profile"},
-    "SubnetId": "subnet-074afec090850ea1a",  # us-east-1a
-    "SecurityGroupIds": ["sg-0f8b550b035891625"],
+    "SubnetId": os.environ.get("SUBNET_1A", ""),  # us-east-1a
+    "SecurityGroupIds": [os.environ.get("BACKFILL_SG_ID", "")],
     "TagSpecifications": [{
         "ResourceType": "instance",
         "Tags": [{"Key": "Name", "Value": "finpipe-backfill"}],

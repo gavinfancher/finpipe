@@ -8,6 +8,7 @@ Usage:
     uv run dagster dev -f dagster_backfill.py
 """
 
+import os
 import time
 
 import boto3
@@ -28,8 +29,8 @@ EC2_CONFIG = {
     "MinCount": 1,
     "MaxCount": 1,
     "IamInstanceProfile": {"Name": "backfill-ec2-profile"},
-    "SubnetId": "subnet-074afec090850ea1a",  # us-east-1a
-    "SecurityGroupIds": ["sg-0f8b550b035891625"],
+    "SubnetId": os.environ.get("SUBNET_1A", ""),  # us-east-1a
+    "SecurityGroupIds": [os.environ.get("BACKFILL_SG_ID", "")],
     "TagSpecifications": [{
         "ResourceType": "instance",
         "Tags": [{"Key": "Name", "Value": "finpipe-backfill"}],

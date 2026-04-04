@@ -2,12 +2,13 @@ x-ingest: &ingest
   build:
     context: ../..
     dockerfile: deploy/backend/Dockerfile
-  command: ["uv", "run", "python", "-m", "streaming.massive"]
+  command: ["uv", "run", "python", "-m", "streaming.ingest"]
   restart: unless-stopped
   environment: &ingest-env
     MASSIVE_API_KEY: ${MASSIVE_API_KEY}
     KAFKA_BOOTSTRAP: redpanda:9092
     REDIS_URL: redis://redis:6379
+    CONTROL_URL: http://control:8081
   depends_on:
     redpanda:
       condition: service_healthy
@@ -107,7 +108,9 @@ services:
       context: ../..
       dockerfile: deploy/backend/Dockerfile
     restart: unless-stopped
-    command: ["uv", "run", "python", "-m", "control.main"]
+    command: ["uv", "run", "python", "-m", "streaming.control"]
+    ports:
+      - "8081:8081"
     environment:
       DATABASE_URL: postgresql://postgres:${POSTGRES_PASSWORD}@postgres:5432/finpipe
       REDIS_URL: redis://redis:6379
