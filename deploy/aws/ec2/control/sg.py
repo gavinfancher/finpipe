@@ -94,6 +94,17 @@ def create() -> str:
         }],
     )
 
+    # Cloudflared tunnel — QUIC connection to Cloudflare edge
+    ec2.authorize_security_group_egress(
+        GroupId=sg_id,
+        IpPermissions=[{
+            "IpProtocol": "tcp",
+            "FromPort": 7844,
+            "ToPort": 7844,
+            "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
+        }],
+    )
+
     # HTTP — package installs during bootstrap
     ec2.authorize_security_group_egress(
         GroupId=sg_id,

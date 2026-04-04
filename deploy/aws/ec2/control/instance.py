@@ -47,13 +47,10 @@ def create() -> str:
         ami_id = get_ubuntu_ami()
         print(f"ami: {ami_id} (Ubuntu 24.04 LTS)")
 
-        # read user-data script and inject docker-compose from repo
+        # read user-data bootstrap script
         ec2_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "ec2")
         with open(os.path.join(ec2_dir, "user-data.sh")) as f:
             user_data = f.read()
-        with open(os.path.join(ec2_dir, "docker-compose.yml")) as f:
-            compose_content = f.read()
-        user_data = user_data.replace("{{DOCKER_COMPOSE}}", compose_content)
 
         resp = ec2.run_instances(
             ImageId=ami_id,
