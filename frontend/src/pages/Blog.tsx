@@ -9,10 +9,10 @@ function PostList() {
   return (
     <div className="blog-list">
       {POSTS.map((post) => (
-        <Link to={`/blog/${post.slug}`} key={post.slug} className="blog-card">
-          <span className="blog-card__date">{post.date}</span>
-          <h2 className="blog-card__title">{post.title}</h2>
-          <p className="blog-card__summary">{post.summary}</p>
+        <Link to={`/blog/${post.slug}`} key={post.slug} className="learn-card">
+          <h3 className="learn-card__title">{post.title}</h3>
+          <p className="learn-card__summary">{post.summary}</p>
+          <span className="learn-card__link">read more &rarr;</span>
         </Link>
       ))}
     </div>
@@ -47,11 +47,10 @@ export default function Blog() {
   return (
     <div className="home-page">
       <NavBar />
-      <div className="learn-page">
+      <div className="blog-layout">
         {slug ? <PostDetail slug={slug} /> : (
           <>
-            <h1 className="learn-title">blog</h1>
-            <p className="learn-intro">
+            <p className="blog-intro">
               engineering decisions, architectural trade-offs, and lessons learned
               building finpipe.
             </p>

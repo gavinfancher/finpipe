@@ -9,8 +9,11 @@ export interface PostMeta {
 }
 
 export interface LearnSection {
+  slug: string;
   title: string;
+  summary: string;
   order: number;
+  category: string;
   html: string;
 }
 
@@ -49,11 +52,15 @@ export function loadBlogPosts(): PostMeta[] {
 export function loadLearnSections(): LearnSection[] {
   const modules = import.meta.glob("/content/learn/*.md", { eager: true, query: "?raw", import: "default" });
 
-  const sections: LearnSection[] = Object.entries(modules).map(([_, raw]) => {
+  const sections: LearnSection[] = Object.entries(modules).map(([path, raw]) => {
     const { meta, body } = parseFrontmatter(raw as string);
+    const slug = path.replace("/content/learn/", "").replace(".md", "");
     return {
+      slug,
       title: meta.title || "",
+      summary: meta.summary || "",
       order: parseInt(meta.order || "99", 10),
+      category: meta.category || "overview",
       html: marked.parse(body) as string,
     };
   });

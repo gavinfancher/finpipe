@@ -471,32 +471,72 @@ input[type="password"] { letter-spacing: 0.2em; font-size: 16px; }
 }
 
 /* ── Learn page ── */
-.learn-page {
+.learn-layout {
+  position: relative;
   flex: 1;
   max-width: 720px;
   margin: 0 auto;
-  padding: 48px 20px;
+  padding: 32px 20px;
 }
 
-.learn-title {
-  font-size: 28px;
+.learn-sidebar {
+  position: fixed;
+  left: max(16px, calc((100vw - 720px) / 2 - 180px));
+  top: 80px;
+  width: 140px;
+}
+
+.learn-sidebar__title {
+  font-size: 11px;
   font-weight: 700;
-  letter-spacing: -1px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-muted);
+  padding: 0 8px;
+  margin-bottom: 8px;
+}
+
+.learn-sidebar__item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 6px 8px;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.learn-sidebar__item:hover {
+  color: var(--text-primary);
+  background: var(--bg-surface);
+}
+
+.learn-sidebar__item--active {
   color: var(--accent);
-  margin-bottom: 12px;
+  background: var(--bg-surface);
+  font-weight: 600;
+}
+
+.learn-content {
+  width: 100%;
 }
 
 .learn-intro {
   font-size: 14px;
   color: var(--text-secondary);
   line-height: 1.6;
-  margin-bottom: 32px;
+  margin-bottom: 24px;
 }
 
 .learn-sections {
   display: flex;
   flex-direction: column;
-  gap: 28px;
+  gap: 24px;
 }
 
 .learn-block {
@@ -513,6 +553,14 @@ input[type="password"] { letter-spacing: 0.2em; font-size: 16px; }
   margin-bottom: 12px;
 }
 
+.learn-block h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-top: 20px;
+  margin-bottom: 8px;
+}
+
 .learn-block p {
   font-size: 13px;
   color: var(--text-secondary);
@@ -524,34 +572,101 @@ input[type="password"] { letter-spacing: 0.2em; font-size: 16px; }
   margin-bottom: 0;
 }
 
-.learn-stack {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.learn-block ul, .learn-block ol {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  padding-left: 20px;
+  margin: 0 0 12px;
 }
 
-.learn-stack-item {
-  display: flex;
-  justify-content: space-between;
+.learn-block li {
+  margin-bottom: 4px;
+}
+
+.learn-back {
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 13px;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 16px;
+  transition: color 0.15s;
+}
+
+.learn-back:hover {
+  color: var(--accent);
+}
+
+.learn-card {
+  display: block;
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 24px;
+  text-decoration: none;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.learn-card:hover {
+  border-color: var(--accent);
+  background: var(--bg-hover, var(--bg-surface));
+}
+
+.learn-card__title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 0 0 8px;
+}
+
+.learn-card__summary {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin: 0 0 12px;
+}
+
+.learn-card__link {
   font-size: 12px;
-  padding: 6px 0;
-  border-bottom: 1px solid var(--border);
-}
-
-.learn-stack-item span:first-child {
   color: var(--text-muted);
   font-weight: 600;
 }
 
-.learn-stack-item span:last-child {
-  color: var(--text-secondary);
+.learn-card:hover .learn-card__link {
+  color: var(--accent);
 }
 
-.learn-stack-item:last-child {
-  border-bottom: none;
+@media (max-width: 1024px) {
+  .learn-sidebar {
+    position: static;
+    width: 100%;
+    display: flex;
+    gap: 4px;
+    margin-bottom: 16px;
+  }
+  .learn-sidebar__title {
+    display: none;
+  }
 }
 
 /* ── Blog ── */
+.blog-layout {
+  flex: 1;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 20px;
+}
+
+.blog-intro {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 24px;
+}
+
 .blog-list {
   display: flex;
   flex-direction: column;
@@ -650,6 +765,32 @@ input[type="password"] { letter-spacing: 0.2em; font-size: 16px; }
 .blog-post__body pre code {
   background: none;
   padding: 0;
+}
+
+.blog-post__body h2 {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--accent);
+  margin: 24px 0 12px;
+}
+
+.blog-post__body h3 {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin: 20px 0 8px;
+}
+
+.blog-post__body ul, .blog-post__body ol {
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+  padding-left: 20px;
+  margin: 0 0 12px;
+}
+
+.blog-post__body li {
+  margin-bottom: 4px;
 }
 
 .blog-post__body img,
