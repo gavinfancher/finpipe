@@ -48,32 +48,3 @@ local-dev-down:
 	@-pkill -f "ssh.*-L 5432:$(RDS_HOST)" 2>/dev/null
 	@-pkill -f "npm run dev" 2>/dev/null
 	@echo "done"
-
-local-dev-logs:
-	$(LOCAL) logs -f
-
-# --- EC2 deploy ---
-
-deploy:
-	@echo "deploying to EC2..."
-	$(EC2_SSH) "cd /home/ubuntu/finpipe && git pull && cd deploy/ec2 && sudo docker compose up --build -d"
-	@echo "done"
-
-ec2-ssh:
-	$(EC2_SSH)
-
-ec2-status:
-	$(EC2_SSH) "sudo docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'"
-
-ec2-logs:
-	$(EC2_SSH) "cd /home/ubuntu/finpipe/deploy/ec2 && sudo docker compose logs -f"
-
-ec2-stop:
-	aws ec2 stop-instances --instance-ids $$(aws ec2 describe-instances \
-		--filters "Name=tag:Name,Values=finpipe-streaming" "Name=instance-state-name,Values=running" \
-		--query 'Reservations[0].Instances[0].InstanceId' --output text)
-
-ec2-start:
-	aws ec2 start-instances --instance-ids $$(aws ec2 describe-instances \
-		--filters "Name=tag:Name,Values=finpipe-streaming" "Name=instance-state-name,Values=stopped" \
-		--query 'Reservations[0].Instances[0].InstanceId' --output text)

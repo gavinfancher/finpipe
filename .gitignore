@@ -23,6 +23,7 @@ dist/
 # ide
 .idea/
 .vscode/
+.claude
 
 # uv
 .python-version
@@ -33,4 +34,3 @@ dagster/logs/
 
 # frontend
 frontend/.vite/
-.claude

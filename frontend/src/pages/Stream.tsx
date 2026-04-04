@@ -142,25 +142,6 @@ export default function Stream() {
     return () => clearTimeout(t);
   }, [ticks]);
 
-  const lastTickAt = useRef<number | null>(null);
-  const [elapsed, setElapsed] = useState<number | null>(null);
-
-  useEffect(() => { if (status === "connected") lastTickAt.current = Date.now(); }, [status]);
-  useEffect(() => { if (Object.keys(ticks).length > 0) lastTickAt.current = Date.now(); }, [ticks]);
-  useEffect(() => {
-    const id = setInterval(() => {
-      if (lastTickAt.current === null) { setElapsed(null); return; }
-      setElapsed(Math.floor((Date.now() - lastTickAt.current) / 1000));
-    }, 1000);
-    return () => clearInterval(id);
-  }, []);
-
-  function formatMmSs(s: number): string {
-    const mm = Math.floor(s / 60).toString().padStart(2, "0");
-    const ss = (s % 60).toString().padStart(2, "0");
-    return `${mm}:${ss}`;
-  }
-
   useEffect(() => {
     if (!showWLPanel) return;
     function close() { setShowWLPanel(false); }
@@ -320,16 +301,6 @@ export default function Stream() {
         <span className="statusbar-label">{STATUS_LABEL[status].toLowerCase()}</span>
         <span className="statusbar-sep">·</span>
         <span className="statusbar-label">{WS_BASE}</span>
-        {(market.session === "pre-market" || market.session === "post-market") && (
-          <>
-            <span className="statusbar-sep">·</span>
-            <span className="statusbar-label statusbar-label--muted">
-              {elapsed === null || elapsed < 2
-                ? "updated --:-- ago"
-                : `updated ${formatMmSs(elapsed)} ago`}
-            </span>
-          </>
-        )}
         {countdown !== null && countdown > 0 && (
           <>
             <span className="statusbar-sep">·</span>
