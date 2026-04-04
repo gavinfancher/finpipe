@@ -1,47 +1,87 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { API_BASE } from "../config";
 
-export type MarketSession = "pre-market" | "market open" | "post-market" | "off hours";
+export type MarketSession = "pre-market" | "open" | "post-market" | "closed";
 
-interface MarketStatus {
+export interface MarketStatus {
   session: MarketSession;
-  label: string;
-  dotClass: string;
+  isHoliday: boolean;
+  holidayName: string | null;
+  nextOpen: number;   // unix seconds
+  nextClose: number;  // unix seconds
 }
 
-function getEtMinutes(): number {
-  const etStr = new Intl.DateTimeFormat("en-US", {
-    timeZone: "America/New_York",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(new Date());
+const DOT_CLASS: Record<MarketSession, string> = {
+  "pre-market": "dot--yellow",
+  "open": "dot--green",
+  "post-market": "dot--purple",
+  "closed": "dot--red",
+};
 
-  const [h, m] = etStr.split(":").map(Number);
-  return h * 60 + m;
-}
+const LABEL: Record<MarketSession, string> = {
+  "pre-market": "pre-market",
+  "open": "market open",
+  "post-market": "post-market",
+  "closed": "off hours",
+};
 
-function computeStatus(): MarketStatus {
-  const mins = getEtMinutes();
+export function useMarketStatus() {
+  const [status, setStatus] = useState<MarketStatus | null>(null);
 
-  if (mins >= 4 * 60 && mins < 9 * 60 + 30) {
-    return { session: "pre-market", label: "pre-market", dotClass: "dot--yellow" };
-  }
-  if (mins >= 9 * 60 + 30 && mins < 16 * 60) {
-    return { session: "market open", label: "market open", dotClass: "dot--green" };
-  }
-  if (mins >= 16 * 60 && mins < 20 * 60) {
-    return { session: "post-market", label: "post-market", dotClass: "dot--purple" };
-  }
-  return { session: "off hours", label: "off hours", dotClass: "dot--red" };
-}
-
-export function useMarketStatus(): MarketStatus {
-  const [status, setStatus] = useState<MarketStatus>(computeStatus);
-
-  useEffect(() => {
-    const id = setInterval(() => setStatus(computeStatus()), 30_000);
-    return () => clearInterval(id);
+  const fetchStatus = useCallback(async () => {
+    try {
+      const res = await fetch(`${API_BASE}/external/market/status`);
+      if (!res.ok) return;
+      const data = await res.json();
+      setStatus({
+        session: data.session,
+        isHoliday: data.is_holiday,
+        holidayName: data.holiday_name,
+        nextOpen: data.next_open,
+        nextClose: data.next_close,
+      });
+    } catch { /* ignore fetch errors */ }
   }, []);
 
-  return status;
+  useEffect(() => {
+    fetchStatus();
+    const id = setInterval(fetchStatus, 30_000);
+    return () => clearInterval(id);
+  }, [fetchStatus]);
+
+  const session = status?.session ?? "closed";
+
+  return {
+    status,
+    session,
+    label: status?.isHoliday && status.holidayName
+      ? status.holidayName.toLowerCase()
+      : LABEL[session],
+    dotClass: DOT_CLASS[session],
+  };
+}
+
+export function useCountdown(targetUnix: number | null): number | null {
+  const [seconds, setSeconds] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (targetUnix === null) { setSeconds(null); return; }
+
+    function tick() {
+      const diff = targetUnix! - Math.floor(Date.now() / 1000);
+      setSeconds(diff > 0 ? diff : 0);
+    }
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [targetUnix]);
+
+  return seconds;
+}
+
+export function formatCountdown(totalSecs: number): string {
+  const h = Math.floor(totalSecs / 3600);
+  const m = Math.floor((totalSecs % 3600) / 60);
+  const s = totalSecs % 60;
+  return `${h.toString().padStart(2, "0")}:${m.toString().padStart(2, "0")}:${s.toString().padStart(2, "0")}`;
 }

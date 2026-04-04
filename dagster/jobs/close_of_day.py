@@ -1,12 +1,11 @@
 """
-Close-of-day job: fetches final closes from Massive REST API and writes
-reference prices to Redis for next-day tick enrichment.
+Close-of-day job: fetches final closes from Massive REST API and updates
+the single ticker:{T} Redis hash with reference closes, perf %, and price.
 
 Runs daily after market close (scheduled for 20:30 NYC via Dagster).
 
-Redis keys written:
-  - ticker:prev_close:{TICKER}  — float, previous trading day close
-  - ticker:perf:{TICKER}        — hash with 5d, 1m, 3m, 6m, 1y, ytd, 3y reference closes
+Redis key written per ticker:
+  ticker:{TICKER} — hash with 20 fields (price, change, prevClose, refs, perfs)
 
 Usage:
     uv run dagster dev -f close_of_day.py
@@ -16,9 +15,9 @@ import time
 from datetime import date, timedelta
 
 import pendulum
-from common.market import PERF_PERIODS, fetch_close, trading_dates
+from common.market import PERF_LABELS, fetch_close, trading_dates
 from common.postgres import get_all_tickers
-from common.redis_keys import PERF_KEY, PREV_CLOSE_KEY
+from common.redis_keys import LABEL_TO_REF, TICKER_KEY
 from dagster import (
     Out,
     ScheduleDefinition,
@@ -63,7 +62,7 @@ def compute_reference_dates() -> dict:
 
 @op
 def fetch_and_cache_closes(tickers: list, ref_dates_raw: dict):
-    """Fetch closes from Massive API and write to Redis."""
+    """Fetch closes from Massive API and write to single Redis hash per ticker."""
     import os
 
     import redis
@@ -76,35 +75,59 @@ def fetch_and_cache_closes(tickers: list, ref_dates_raw: dict):
     client = RESTClient(api_key=massive_key)
     rdb = redis.from_url(redis_url, decode_responses=True)
 
-    # Convert ISO strings back to date objects
     ref_dates = {k: date.fromisoformat(v) for k, v in ref_dates_raw.items()}
 
     success = 0
     for ticker in tickers:
         try:
+            mapping: dict[str, str] = {}
+
             # Previous close
+            prev_close = None
             prev_date = ref_dates.get("prev")
             if prev_date:
                 prev_close = fetch_close(client, ticker, prev_date)
                 if prev_close is not None:
-                    rdb.set(PREV_CLOSE_KEY.format(ticker), str(prev_close))
+                    mapping["prevClose"] = str(prev_close)
 
-            # Perf reference closes
-            perf_data: dict[str, str] = {}
-            for label in PERF_PERIODS:
+            # Reference closes
+            ref_closes: dict[str, float] = {}
+            for label in PERF_LABELS:
                 ref_date = ref_dates.get(label)
                 if ref_date:
                     close = fetch_close(client, ticker, ref_date)
                     if close is not None:
-                        perf_data[label] = str(close)
+                        ref_field = LABEL_TO_REF[label]
+                        mapping[ref_field] = str(close)
+                        ref_closes[label] = close
 
-            if perf_data:
-                rdb.hset(PERF_KEY.format(ticker), mapping=perf_data)
+            # Today's close as price (this runs at 20:30 after market close)
+            today = date.today()
+            aggs = client.get_aggs(ticker, 1, "day", today - timedelta(days=5), today, limit=5)
+            if aggs:
+                price = aggs[-1].close
+                volume = int(aggs[-1].volume or 0)
+                timestamp = aggs[-1].timestamp or 0
+                mapping["price"] = str(price)
+                mapping["volume"] = str(volume)
+                mapping["timestamp"] = str(timestamp)
+
+                if prev_close:
+                    change = price - prev_close
+                    mapping["change"] = str(round(change, 4))
+                    mapping["changePct"] = str(round(change / prev_close * 100, 4))
+
+                for label, ref_close in ref_closes.items():
+                    ref_field = LABEL_TO_REF[label]
+                    perf_field = ref_field.replace("ref", "perf")
+                    mapping[perf_field] = str(round((price - ref_close) / ref_close * 100, 4))
+
+            if mapping:
+                rdb.hset(TICKER_KEY.format(ticker), mapping=mapping)
 
             success += 1
-            log.info("cached %s: prev=%s, perf_fields=%d", ticker, prev_date, len(perf_data))
+            log.info("cached %s: prev=%s, fields=%d", ticker, prev_date, len(mapping))
 
-            # Rate limit: ~5 req/sec to be safe
             time.sleep(0.2)
 
         except Exception as e:

@@ -16,7 +16,7 @@ import core.db as db
 from core.logging_config import configure_logging
 from streaming import relay
 from core.enrichment import init_redis, close_redis, load_all_cached_ticks
-from api.external import auth, positions, tickers, ws
+from api.external import auth, market, positions, tickers, ws
 from api.internal import health
 
 configure_logging()
@@ -67,6 +67,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/external")
+app.include_router(market.router, prefix="/external/market")
 app.include_router(tickers.router, prefix="/external")
 app.include_router(positions.router, prefix="/external")
 app.include_router(ws.router)

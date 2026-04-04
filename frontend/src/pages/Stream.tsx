@@ -2,8 +2,7 @@ import { useState, useEffect, useRef, useCallback, type KeyboardEvent } from "re
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useStockWebSocket } from "../hooks/useStockWebSocket";
-import { useMarketStatus } from "../hooks/useMarketStatus";
-import { useMarketCountdown, formatCountdown } from "../hooks/useMarketCountdown";
+import { useMarketStatus, useCountdown, formatCountdown } from "../hooks/useMarketStatus";
 import { usePreferences } from "../hooks/usePreferences";
 import { getToken } from "../store/userStore";
 import TickerRow, { type WLColKey } from "../components/TickerRow";
@@ -61,7 +60,9 @@ export default function Stream() {
   const { ticks, status } = useStockWebSocket(token);
   const authHeader = { Authorization: `Bearer ${token}` };
   const market = useMarketStatus();
-  const countdown = useMarketCountdown();
+  const isActive = market.session === "pre-market" || market.session === "open" || market.session === "post-market";
+  const countdownTarget = isActive ? market.status?.nextClose ?? null : market.status?.nextOpen ?? null;
+  const countdown = useCountdown(countdownTarget);
   const { prefs, loaded: prefsLoaded, update: updatePref } = usePreferences(token);
   const prevPrices = useRef<Record<string, number>>({});
   const [, forceUpdate] = useState(0);
@@ -329,10 +330,12 @@ export default function Stream() {
             </span>
           </>
         )}
-        {countdown !== null && (
+        {countdown !== null && countdown > 0 && (
           <>
             <span className="statusbar-sep">·</span>
-            <span className="statusbar-label">trading in {formatCountdown(countdown)}</span>
+            <span className="statusbar-label">
+              {isActive ? `trading stops in ${formatCountdown(countdown)}` : `trading in ${formatCountdown(countdown)}`}
+            </span>
           </>
         )}
       </footer>

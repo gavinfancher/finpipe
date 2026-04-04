@@ -2,7 +2,7 @@
 One-off script to seed Redis with reference closes for all tickers.
 Run this to populate perf data before the first close-of-day Dagster job.
 
-Usage: uv run python -m seed_redis
+Usage: uv run python -m tools.seed_redis
 """
 
 import asyncio
@@ -13,9 +13,9 @@ from pathlib import Path
 
 import asyncpg
 import redis
-from common.market import PERF_PERIODS, fetch_close, trading_dates
+from common.market import PERF_LABELS, fetch_close, trading_dates
 from common.postgres import get_all_tickers
-from common.redis_keys import PERF_KEY, PREV_CLOSE_KEY, PRICE_KEY
+from common.redis_keys import LABEL_TO_REF, TICKER_KEY
 from dotenv import load_dotenv
 from massive import RESTClient
 
@@ -47,50 +47,66 @@ async def main():
     rdb = redis.from_url(REDIS_URL, decode_responses=True)
 
     for ticker in tickers:
-        # prev_close = second-to-last trading day's close
-        # This is what the last trading day's change is calculated against.
+        mapping: dict[str, str] = {}
+
+        # prev_close
         prev_close = None
         prev_date = ref_dates.get("prev")
         if prev_date:
             prev_close = fetch_close(client, ticker, prev_date)
             if prev_close is not None:
-                rdb.set(PREV_CLOSE_KEY.format(ticker), str(prev_close))
-                log.info("%s prev_close (%s) = %s", ticker, prev_date, prev_close)
+                mapping["prevClose"] = str(prev_close)
+                log.info("%s prevClose (%s) = %s", ticker, prev_date, prev_close)
 
-        # Perf reference closes
-        perf_data: dict[str, str] = {}
-        for label in PERF_PERIODS:
+        # Perf reference closes + computed percentages
+        # (price not known yet — will compute after fetching last agg)
+        ref_closes: dict[str, float] = {}
+        for label in PERF_LABELS:
             ref_date = ref_dates.get(label)
             if ref_date:
                 close = fetch_close(client, ticker, ref_date)
                 if close is not None:
-                    perf_data[label] = str(close)
+                    ref_field = LABEL_TO_REF[label]
+                    mapping[ref_field] = str(close)
+                    ref_closes[label] = close
                     log.info("%s %s (%s) = %s", ticker, label, ref_date, close)
 
-        if perf_data:
-            rdb.hset(PERF_KEY.format(ticker), mapping=perf_data)
-
-        # Price snapshot — use the snapshot endpoint for the most recent quote
-        # (includes after-hours). Change is vs prev_close (last trading day).
+        # Price — last trading day's agg
         try:
-            snap = client.get_snapshot_ticker("stocks", ticker)
-            if snap and snap.day and snap.day.close:
-                price = snap.day.close
-                volume = int(snap.day.volume or 0)
-                timestamp = snap.day.timestamp or 0
-                change = (price - prev_close) if prev_close else 0
-                change_pct = (change / prev_close * 100) if prev_close else 0
-                rdb.hset(PRICE_KEY.format(ticker), mapping={
-                    "price": str(price),
-                    "change": str(round(change, 4)),
-                    "changePct": str(round(change_pct, 4)),
-                    "volume": str(volume),
-                    "timestamp": str(timestamp),
-                })
-                log.info("%s snapshot price=%s change=%+.2f (%+.2f%%)",
-                         ticker, price, change, change_pct)
+            today = date.today()
+            aggs = client.get_aggs(ticker, 1, "day", today - timedelta(days=10), today, limit=10)
+            if aggs and len(aggs) >= 1:
+                last_agg = aggs[-1]
+                price = last_agg.close
+                volume = int(last_agg.volume or 0)
+                timestamp = last_agg.timestamp or 0
+
+                mapping["price"] = str(price)
+                mapping["volume"] = str(volume)
+                mapping["timestamp"] = str(timestamp)
+
+                # Daily change
+                if prev_close:
+                    change = price - prev_close
+                    change_pct = change / prev_close * 100
+                    mapping["change"] = str(round(change, 4))
+                    mapping["changePct"] = str(round(change_pct, 4))
+                    log.info("%s price=%s change=%+.2f (%+.2f%%)",
+                             ticker, price, change, change_pct)
+
+                # Compute perf percentages
+                for label, ref_close in ref_closes.items():
+                    ref_field = LABEL_TO_REF[label]
+                    perf_field = ref_field.replace("ref", "perf")
+                    perf_pct = (price - ref_close) / ref_close * 100
+                    mapping[perf_field] = str(round(perf_pct, 4))
+
         except Exception as e:
-            log.warning("failed snapshot for %s: %s", ticker, e)
+            log.warning("failed price fetch for %s: %s", ticker, e)
+
+        # Write single hash
+        if mapping:
+            rdb.hset(TICKER_KEY.format(ticker), mapping=mapping)
 
     log.info("done — seeded %d tickers", len(tickers))
 
