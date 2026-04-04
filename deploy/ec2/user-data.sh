@@ -24,8 +24,16 @@ get_secret() {
     --query SecretString --output text
 }
 
-# Install docker
-curl -fsSL https://get.docker.com | sh
+# Install Docker from official repo
+apt-get install -y ca-certificates curl
+install -m 0755 -d /etc/apt/keyrings
+curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
+chmod a+r /etc/apt/keyrings/docker.asc
+echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] \
+https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo ${UBUNTU_CODENAME:-$VERSION_CODENAME}) stable" \
+  > /etc/apt/sources.list.d/docker.list
+apt-get update -y
+apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 usermod -aG docker ubuntu
 
 # Pull secrets and build .env
@@ -57,89 +65,10 @@ chown ubuntu:ubuntu /home/ubuntu/.env
 chmod 600 /home/ubuntu/.env
 echo "  .env created"
 
-# Write docker-compose.yml directly (no git clone needed)
+# Write docker-compose.yml (injected by instance.py from deploy/ec2/docker-compose.yml)
 mkdir -p /home/ubuntu/finpipe
 cat > /home/ubuntu/finpipe/docker-compose.yml <<'COMPOSE'
-services:
-  redpanda:
-    image: redpandadata/redpanda:latest
-    restart: unless-stopped
-    command:
-      - redpanda
-      - start
-      - --mode=dev-container
-      - --smp=1
-      - --memory=512M
-      - --advertise-kafka-addr=redpanda:9092
-    ports:
-      - "9092:9092"
-    volumes:
-      - redpanda_data:/var/redpanda/data
-    healthcheck:
-      test: ["CMD", "rpk", "cluster", "health"]
-      interval: 5s
-      timeout: 3s
-      retries: 5
-
-  redpanda-console:
-    image: redpandadata/console:latest
-    restart: unless-stopped
-    ports:
-      - "8888:8080"
-    environment:
-      KAFKA_BROKERS: redpanda:9092
-    depends_on:
-      redpanda:
-        condition: service_healthy
-
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    restart: unless-stopped
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    depends_on:
-      ws-relay:
-        condition: service_started
-
-  ws-relay:
-    image: ${ECR_IMAGE:-finpipe-backend:latest}
-    restart: unless-stopped
-    ports:
-      - "8080:8080"
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      KAFKA_BOOTSTRAP: redpanda:9092
-      JWT_SECRET: ${JWT_SECRET}
-      BETA_KEY: ${BETA_KEY}
-      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
-      ADMIN_USER: ${ADMIN_USER}
-      ADMIN_PASSWORD: ${ADMIN_PASSWORD}
-      SKIP_SCHEMA_INIT: "false"
-    depends_on:
-      redpanda:
-        condition: service_healthy
-
-  control:
-    image: ${ECR_IMAGE:-finpipe-backend:latest}
-    restart: unless-stopped
-    command: ["uv", "run", "python", "-m", "streaming.control"]
-    ports:
-      - "8081:8081"
-    environment:
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      CONTROL_POLL_INTERVAL: "5"
-      MIN_NODES: "3"
-      CONTROL_PORT: "8081"
-      ECS_CLUSTER: finpipe
-      ECS_SERVICE: ingest
-      AWS_REGION: us-east-1
-    depends_on:
-      redpanda:
-        condition: service_healthy
-
-volumes:
-  redpanda_data:
+{{DOCKER_COMPOSE}}
 COMPOSE
 
 chown -R ubuntu:ubuntu /home/ubuntu/finpipe

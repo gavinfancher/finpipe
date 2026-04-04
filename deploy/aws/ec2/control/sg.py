@@ -2,14 +2,14 @@
 Create the finpipe-ec2-sg security group.
 
 Rules:
-  - No inbound (zero attack surface) except from ECS ingest (9092, 8081)
-  - Outbound: HTTPS, HTTP, RDS (5432), Valkey (6379)
+  - Inbound: SSH (22), ECS ingest → 9092 (Redpanda) + 8081 (control API)
+  - Outbound: HTTPS, HTTP, 5432 → RDS, 6379 → Valkey
 
 Cross-links to finpipe-rds-sg, finpipe-valkey-sg, and finpipe-ecs-ingest-sg
-when they exist.
+when they exist. Also adds corresponding ingress rules on RDS/Valkey SGs.
 
 Usage:
-    uv run python deploy/aws/ec2/sg.py
+    uv run python deploy/aws/ec2/control/sg.py
 """
 
 from deploy.aws.config import ec2, VPC_ID, find_sg
@@ -18,7 +18,7 @@ SG_NAME = "finpipe-ec2-sg"
 
 
 def create() -> str:
-    """Create or find the EC2 security group. Returns sg_id."""
+    """Create or find the EC2 control node security group. Returns sg_id."""
     sg_id = find_sg(SG_NAME)
 
     if sg_id:
@@ -27,7 +27,7 @@ def create() -> str:
 
     sg = ec2.create_security_group(
         GroupName=SG_NAME,
-        Description="finpipe EC2 core - no inbound, outbound to managed services",
+        Description="finpipe control node - SSH + ECS inbound, outbound to managed services",
         VpcId=VPC_ID,
         TagSpecifications=[{
             "ResourceType": "security-group",
@@ -37,7 +37,44 @@ def create() -> str:
     sg_id = sg["GroupId"]
     print(f"created: {sg_id}")
 
-    # replace default allow-all outbound with explicit rules
+    # --- inbound ---
+
+    # SSH
+    ec2.authorize_security_group_ingress(
+        GroupId=sg_id,
+        IpPermissions=[{
+            "IpProtocol": "tcp",
+            "FromPort": 22,
+            "ToPort": 22,
+            "IpRanges": [{"CidrIp": "0.0.0.0/0"}],
+        }],
+    )
+    print("  ingress: 22 (SSH)")
+
+    # ECS ingest → Redpanda + control API
+    ecs_sg_id = find_sg("finpipe-ecs-ingest-sg")
+    if ecs_sg_id:
+        for port, label in [(9092, "Redpanda"), (8081, "control API")]:
+            try:
+                ec2.authorize_security_group_ingress(
+                    GroupId=sg_id,
+                    IpPermissions=[{
+                        "IpProtocol": "tcp",
+                        "FromPort": port,
+                        "ToPort": port,
+                        "UserIdGroupPairs": [{"GroupId": ecs_sg_id}],
+                    }],
+                )
+            except Exception as e:
+                if "already exists" not in str(e):
+                    raise
+            print(f"  ingress: {port} ← ECS ingest ({label})")
+    else:
+        print("  warning: finpipe-ecs-ingest-sg not found, skipping ECS inbound")
+
+    # --- outbound ---
+
+    # replace default allow-all
     ec2.revoke_security_group_egress(
         GroupId=sg_id,
         IpPermissions=[{
@@ -69,7 +106,7 @@ def create() -> str:
     )
     print("  egress: 443, 80 → internet")
 
-    # Postgres → RDS security group
+    # Postgres → RDS
     rds_sg_id = find_sg("finpipe-rds-sg")
     if rds_sg_id:
         ec2.authorize_security_group_egress(
@@ -81,7 +118,6 @@ def create() -> str:
                 "UserIdGroupPairs": [{"GroupId": rds_sg_id}],
             }],
         )
-        # allow RDS to accept connections from this EC2
         try:
             ec2.authorize_security_group_ingress(
                 GroupId=rds_sg_id,
@@ -99,7 +135,7 @@ def create() -> str:
     else:
         print("  warning: finpipe-rds-sg not found, skipping RDS egress")
 
-    # Redis → Valkey security group
+    # Redis → Valkey
     valkey_sg_id = find_sg("finpipe-valkey-sg")
     if valkey_sg_id:
         ec2.authorize_security_group_egress(
@@ -127,27 +163,6 @@ def create() -> str:
         print(f"  egress: 6379 → Valkey ({valkey_sg_id})")
     else:
         print("  warning: finpipe-valkey-sg not found, skipping Valkey egress")
-
-    # Inbound from ECS ingest tasks (9092 Redpanda, 8081 control API)
-    ecs_sg_id = find_sg("finpipe-ecs-ingest-sg")
-    if ecs_sg_id:
-        for port, label in [(9092, "Redpanda"), (8081, "control API")]:
-            try:
-                ec2.authorize_security_group_ingress(
-                    GroupId=sg_id,
-                    IpPermissions=[{
-                        "IpProtocol": "tcp",
-                        "FromPort": port,
-                        "ToPort": port,
-                        "UserIdGroupPairs": [{"GroupId": ecs_sg_id}],
-                    }],
-                )
-            except Exception as e:
-                if "already exists" not in str(e):
-                    raise
-            print(f"  ingress: {port} ← ECS ingest ({label})")
-    else:
-        print("  warning: finpipe-ecs-ingest-sg not found, skipping ECS inbound")
 
     return sg_id
 

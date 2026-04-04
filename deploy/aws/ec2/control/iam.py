@@ -9,7 +9,7 @@ Policies:
   - SSM (remote shell access, no SSH needed)
 
 Usage:
-    uv run python deploy/aws/ec2/iam.py
+    uv run python deploy/aws/ec2/control/iam.py
 """
 
 import json
@@ -59,7 +59,7 @@ def create() -> str:
         }),
     )
 
-    # rds describe
+    # rds describe — user-data resolves endpoint dynamically
     iam.put_role_policy(
         RoleName=ROLE_NAME,
         PolicyName="rds-describe",
@@ -69,6 +69,20 @@ def create() -> str:
                 "Effect": "Allow",
                 "Action": "rds:DescribeDBInstances",
                 "Resource": f"arn:aws:rds:{REGION}:{ACCOUNT_ID}:db:finpipe-db",
+            }],
+        }),
+    )
+
+    # elasticache describe — user-data resolves valkey endpoint dynamically
+    iam.put_role_policy(
+        RoleName=ROLE_NAME,
+        PolicyName="elasticache-describe",
+        PolicyDocument=json.dumps({
+            "Version": "2012-10-17",
+            "Statement": [{
+                "Effect": "Allow",
+                "Action": "elasticache:DescribeReplicationGroups",
+                "Resource": f"arn:aws:elasticache:{REGION}:{ACCOUNT_ID}:replicationgroup:finpipe-cache",
             }],
         }),
     )

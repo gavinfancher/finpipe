@@ -8,10 +8,8 @@ Usage:
     uv run dagster dev -f dagster_backfill.py
 """
 
-import os
 import time
 
-import boto3
 import pendulum
 from dagster import (
     Config,
@@ -23,22 +21,12 @@ from dagster import (
     op,
 )
 
-EC2_CONFIG = {
-    "ImageId": "ami-0f9de6e2d2f067fca",  # Ubuntu 24.04 us-east-1
-    "InstanceType": "c5n.4xlarge",
-    "MinCount": 1,
-    "MaxCount": 1,
-    "IamInstanceProfile": {"Name": "backfill-ec2-profile"},
-    "SubnetId": os.environ.get("SUBNET_1A", ""),  # us-east-1a
-    "SecurityGroupIds": [os.environ.get("BACKFILL_SG_ID", "")],
-    "TagSpecifications": [{
-        "ResourceType": "instance",
-        "Tags": [{"Key": "Name", "Value": "finpipe-backfill"}],
-    }],
-}
+from deploy.aws.ec2.backfill.instance import create as launch_backfill, terminate
+from deploy.aws.config import REGION
+
+import boto3
 
 REPO_URL = "https://github.com/gavinfancher/massive-ingestion.git"
-REGION = "us-east-1"
 
 
 class BackfillConfig(Config):
@@ -115,12 +103,6 @@ def wait_for_ssm(instance_id, timeout=300):
     raise TimeoutError(f"SSM agent not online after {timeout}s on {instance_id}")
 
 
-def _terminate(instance_id):
-    """Terminate an EC2 instance."""
-    ec2 = boto3.client("ec2", region_name=REGION)
-    ec2.terminate_instances(InstanceIds=[instance_id])
-
-
 # ---------- ops ----------
 
 
@@ -130,24 +112,11 @@ def _terminate(instance_id):
 def launch_instance():
     """Launch EC2 spot instance."""
     log = get_dagster_logger()
-    ec2 = boto3.client("ec2", region_name=REGION)
 
-    config = {**EC2_CONFIG}
+    log.info("launching backfill spot instance...")
     ts = pendulum.now().format("YYYY-MM-DD-HH-mm")
-    config["TagSpecifications"] = [{
-        "ResourceType": "instance",
-        "Tags": [{"Key": "Name", "Value": f"finpipe-backfill-{ts}"}],
-    }]
-
-    log.info(f"launching {config['InstanceType']} spot in us-east-1a...")
-    resp = ec2.run_instances(**config)
-    instance_id = resp["Instances"][0]["InstanceId"]
-    log.info(f"instance id: {instance_id}")
-
-    log.info("waiting for running state...")
-    waiter = ec2.get_waiter("instance_running")
-    waiter.wait(InstanceIds=[instance_id])
-    log.info(f"{instance_id} is running")
+    instance_id, public_ip = launch_backfill(name_suffix=ts)
+    log.info(f"instance id: {instance_id}, ip: {public_ip}")
 
     return instance_id
 
@@ -285,7 +254,7 @@ def terminate_and_report(instance_id: str, backfill_result: str):
     log = get_dagster_logger()
 
     log.info(f"terminating {instance_id}...")
-    _terminate(instance_id)
+    terminate(instance_id)
     log.info(f"{instance_id} terminated")
 
     if backfill_result != "success":

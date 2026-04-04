@@ -7,27 +7,11 @@ Usage:
 """
 
 import argparse
-import os
 import subprocess
 import sys
 import time
 
-import boto3
-
-EC2_CONFIG = {
-    "ImageId": "ami-0f9de6e2d2f067fca",  # Ubuntu 24.04 us-east-1
-    "InstanceType": "c5n.4xlarge",
-    "MinCount": 1,
-    "MaxCount": 1,
-    "KeyName": os.environ.get("EC2_KEY_NAME", ""),
-    "IamInstanceProfile": {"Name": "backfill-ec2-profile"},
-    "SubnetId": os.environ.get("SUBNET_1A", ""),  # us-east-1a
-    "SecurityGroupIds": [os.environ.get("BACKFILL_SG_ID", "")],
-    "TagSpecifications": [{
-        "ResourceType": "instance",
-        "Tags": [{"Key": "Name", "Value": "finpipe-backfill"}],
-    }],
-}
+from deploy.aws.ec2.backfill.instance import create as launch_backfill, terminate
 
 FILES_TO_UPLOAD = ["main.py", "pyproject.toml", ".python-version", ".env"]
 SSH_USER = "ubuntu"
@@ -63,25 +47,12 @@ def main():
     parser.add_argument("--workers", type=int, default=16)
     args = parser.parse_args()
 
-    ec2 = boto3.client("ec2", region_name="us-east-1")
     months_str = " ".join(str(m) for m in args.months)
 
     # --- launch ---
-    log(f"launching {EC2_CONFIG['InstanceType']} in us-east-1a...")
     t0 = time.monotonic()
-    resp = ec2.run_instances(**EC2_CONFIG)
-    instance_id = resp["Instances"][0]["InstanceId"]
-    log(f"instance: {instance_id}")
-
-    # --- wait for running ---
-    log("waiting for instance to enter running state...")
-    waiter = ec2.get_waiter("instance_running")
-    waiter.wait(InstanceIds=[instance_id])
-    log(f"instance running ({time.monotonic() - t0:.0f}s)")
-
-    desc = ec2.describe_instances(InstanceIds=[instance_id])
-    host = desc["Reservations"][0]["Instances"][0]["PublicIpAddress"]
-    log(f"public ip: {host}")
+    instance_id, host = launch_backfill()
+    log(f"total provision time: {time.monotonic() - t0:.0f}s")
 
     # --- wait for SSH ---
     log("waiting for SSH to become available...")
@@ -94,8 +65,6 @@ def main():
     else:
         log("SSH never came up after 150s, exiting")
         sys.exit(1)
-
-    log(f"total provision time: {time.monotonic() - t0:.0f}s")
 
     # --- upload files ---
     log(f"uploading {len(FILES_TO_UPLOAD)} files...")
@@ -120,7 +89,7 @@ def main():
     print()
     if rc == 0:
         log(f"backfill succeeded in {time.monotonic() - t0:.0f}s total, terminating {instance_id}...")
-        ec2.terminate_instances(InstanceIds=[instance_id])
+        terminate(instance_id)
         log("done!")
     else:
         log(f"backfill failed (exit {rc}), instance left running for debugging")
