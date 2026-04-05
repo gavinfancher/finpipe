@@ -77,6 +77,7 @@ a:hover { text-decoration: none; }
 
 /* ── Buttons ── */
 .btn-primary {
+  display: inline-block;
   background: var(--accent);
   color: #0e0f0e;
   border: none;
@@ -89,10 +90,12 @@ a:hover { text-decoration: none; }
   transition: opacity 0.15s;
   white-space: nowrap;
   letter-spacing: 0.02em;
+  text-decoration: none;
 }
 .btn-primary:hover { opacity: 0.82; }
 .btn-primary:disabled { opacity: 0.4; cursor: default; }
 .btn-primary--sm { font-size: 11px; padding: 5px 12px; }
+.btn-primary--lg { font-size: 14px; padding: 10px 24px; }
 
 .btn-accent {
   background: transparent;
@@ -452,6 +455,16 @@ input[type="password"] { letter-spacing: 0.2em; font-size: 16px; }
   font-size: 10px;
   color: var(--text-muted);
   border-top: 1px solid var(--border);
+}
+
+.home-demo-cta {
+  text-align: center;
+  margin: 16px 0;
+}
+.home-demo-cta__sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 12px;
 }
 
 .home-links {

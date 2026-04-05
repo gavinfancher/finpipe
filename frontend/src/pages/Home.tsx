@@ -43,6 +43,11 @@ export default function Home() {
           </div>
         </div>
 
+        <div className="home-demo-cta">
+          <Link to="/demo" className="btn-primary btn-primary--lg">open demo</Link>
+          <p className="home-demo-cta__sub">live market data — no account required</p>
+        </div>
+
         <div className="home-links">
           <Link to="/learn" className="home-link-card">
             <h3 className="home-link-card__title">learn more</h3>

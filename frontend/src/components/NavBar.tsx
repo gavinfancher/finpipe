@@ -22,9 +22,9 @@ export default function NavBar() {
         <Link to={user ? "/dashboard" : "/"} className="site-nav__brand">finpipe</Link>
       </div>
       <div className="site-nav__links">
-        <Link to="/demo" className={onHome ? "btn-primary btn-primary--sm" : "btn-accent btn-accent--sm"}>demo</Link>
         <Link to="/learn" className="btn-ghost btn-ghost--sm">learn</Link>
         <Link to="/blog" className="btn-ghost btn-ghost--sm">blog</Link>
+        <Link to="/demo" className={onHome ? "btn-primary btn-primary--sm" : "btn-ghost btn-ghost--sm"}>demo</Link>
       </div>
       <div className="site-nav__right">
         {user ? (
