@@ -30,3 +30,22 @@ async def ws_endpoint(ws: WebSocket, token: str = ""):
     finally:
         state.ui_clients.discard(ws)
         logger.info("UI client disconnected (%s), pool=%d", username, len(state.ui_clients))
+
+
+@router.websocket("/ws/demo")
+async def ws_demo_endpoint(ws: WebSocket):
+    await ws.accept()
+    state.demo_clients.add(ws)
+    logger.info("demo client connected, pool=%d", len(state.demo_clients))
+    try:
+        demo_ticks = {k: v for k, v in state.ticks.items() if k in state.DEMO_TICKERS}
+        if demo_ticks:
+            await ws.send_json({"type": "snapshot", "ticks": demo_ticks})
+        await ws.send_json({"type": "tickers", "tickers": sorted(state.DEMO_TICKERS)})
+        while True:
+            await ws.receive_text()
+    except Exception:
+        pass
+    finally:
+        state.demo_clients.discard(ws)
+        logger.info("demo client disconnected, pool=%d", len(state.demo_clients))

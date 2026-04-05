@@ -13,3 +13,9 @@ if TYPE_CHECKING:
 ticks: dict = {}
 subscriptions: list[str] = []
 ui_clients: set[WebSocket] = set()
+demo_clients: set[WebSocket] = set()
+
+DEMO_TICKERS = frozenset([
+    "AAPL", "MSFT", "GOOGL", "AMZN", "NVDA",
+    "TSLA", "META", "JPM", "V", "UNH",
+])

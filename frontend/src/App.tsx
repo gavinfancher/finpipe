@@ -7,6 +7,7 @@ import Stream from "./pages/Stream";
 import Learn from "./pages/Learn";
 import Blog from "./pages/Blog";
 import Account from "./pages/Account";
+import Demo from "./pages/Demo";
 
 export default function App() {
   return (
@@ -21,6 +22,7 @@ export default function App() {
       <Route path="/dashboard" element={<Dashboard />} />
       <Route path="/account" element={<Account />} />
       <Route path="/stream" element={<Stream />} />
+      <Route path="/demo" element={<Demo />} />
     </Routes>
   );
 }

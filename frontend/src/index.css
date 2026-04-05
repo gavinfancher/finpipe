@@ -94,6 +94,26 @@ a:hover { text-decoration: none; }
 .btn-primary:disabled { opacity: 0.4; cursor: default; }
 .btn-primary--sm { font-size: 11px; padding: 5px 12px; }
 
+.btn-accent {
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  padding: 5px 11px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  text-decoration: none;
+}
+.btn-accent:hover {
+  background: var(--accent);
+  color: #0e0f0e;
+}
+.btn-accent--sm { font-size: 11px; padding: 5px 12px; }
+
 .btn-ghost {
   background: transparent;
   color: var(--text-secondary);
@@ -919,22 +939,50 @@ input[type="password"] { letter-spacing: 0.2em; font-size: 16px; }
   font-weight: 400;
 }
 
+.search-add-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0 4px;
+  flex-shrink: 0;
+  line-height: 1;
+  transition: color 0.15s;
+}
+.search-add-btn:hover { color: var(--accent); }
+
 .search-feedback {
   position: absolute;
-  right: 10px;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
   font-size: 11px;
   white-space: nowrap;
-  pointer-events: none;
-  animation: fade-in-out 2s ease forwards;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: var(--radius-sm);
+  background: var(--bg-elevated, #1e1e1e);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  z-index: 10;
 }
 .search-feedback--ok  { color: var(--green); }
 .search-feedback--err { color: var(--red); }
-
-@keyframes fade-in-out {
-  0%   { opacity: 1; }
-  70%  { opacity: 1; }
-  100% { opacity: 0; }
+.search-feedback__dismiss {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  flex-shrink: 0;
 }
+.search-feedback__dismiss:hover { color: var(--text-primary); }
 
 /* ── Status dot ── */
 .status-dot {
@@ -1602,6 +1650,16 @@ input[type="password"] { letter-spacing: 0.2em; font-size: 16px; }
   }
   .stream-toolbar__search { flex: 1 1 100%; }
   .stream-toolbar__search .search-wrap { width: 100%; max-width: 100%; }
+}
+
+/* ── Demo ── */
+.demo-badge {
+  font-size: 11px;
+  color: var(--text-muted);
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Stream-scoped accent overrides ── */

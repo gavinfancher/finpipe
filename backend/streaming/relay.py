@@ -28,6 +28,18 @@ async def broadcast_ui(data: dict):
             dead.add(ws)
     state.ui_clients.difference_update(dead)
 
+    # broadcast to demo clients (only demo-eligible tickers)
+    if data.get("type") == "tick":
+        ticker = data.get("tick", {}).get("ticker")
+        if ticker and ticker in state.DEMO_TICKERS:
+            demo_dead = set()
+            for ws in state.demo_clients:
+                try:
+                    await ws.send_json(data)
+                except Exception:
+                    demo_dead.add(ws)
+            state.demo_clients.difference_update(demo_dead)
+
 
 async def run():
     """Consume from Redpanda and broadcast enriched ticks to UI."""
