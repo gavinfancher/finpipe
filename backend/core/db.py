@@ -71,12 +71,53 @@ async def init():
         if created:
             logger.info("admin user '%s' created", admin_user)
 
+    # Seed demo user + tickers so Redis gets seeded for the demo page
+    await _seed_demo_user()
+
 
 async def close():
     if _pool:
         await _pool.close()
 
 
+DEMO_TICKERS = ["AAPL", "MSFT", "GOOGL", "AMZN", "NVDA", "TSLA", "META", "JPM", "V", "UNH"]
+
+DEMO_POSITIONS = [
+    ("AAPL",  50,  178.25),
+    ("NVDA",  100, 48.12),
+    ("MSFT",  25,  340.50),
+    ("GOOGL", 75,  125.80),
+    ("TSLA",  30,  245.60),
+]
+
+
+async def _seed_demo_user():
+    async with _pool.acquire() as conn:
+        # create demo user (no password — can't log in)
+        await conn.execute(
+            "insert into users (username) values ('__demo__') on conflict (username) do nothing"
+        )
+        row = await conn.fetchrow("select id from users where username = '__demo__'")
+        uid = row["id"]
+
+        # seed watchlist tickers
+        for ticker in DEMO_TICKERS:
+            await conn.execute(
+                "insert into user_tickers (user_id, ticker) values ($1, $2) on conflict do nothing",
+                uid, ticker,
+            )
+
+        # seed positions (only if none exist yet)
+        count = await conn.fetchval("select count(*) from positions where user_id = $1", uid)
+        if count == 0:
+            for ticker, shares, cost_basis in DEMO_POSITIONS:
+                await conn.execute(
+                    "insert into positions (user_id, ticker, shares, cost_basis) values ($1, $2, $3, $4)",
+                    uid, ticker, shares, cost_basis,
+                )
+            logger.info("demo user seeded with %d tickers and %d positions", len(DEMO_TICKERS), len(DEMO_POSITIONS))
+        else:
+            logger.info("demo user already has positions, skipping seed")
 
 
 # --- auth ---
