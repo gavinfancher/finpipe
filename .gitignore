@@ -31,6 +31,7 @@ dist/
 # dagster
 dagster/storage/
 dagster/logs/
+dagster/.tmp_dagster_home_*/
 
 # frontend
 frontend/.vite/
