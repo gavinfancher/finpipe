@@ -1,8 +1,0 @@
-.DS_Store
-.env
-__pycache__/
-*.pyc
-.venv/
-*.egg-info/
-dagster-vm-key
-dagster-deploy-key.pub

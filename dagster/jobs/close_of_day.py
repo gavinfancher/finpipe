@@ -102,7 +102,7 @@ def fetch_and_cache_closes(tickers: list, ref_dates_raw: dict):
                         ref_closes[label] = close
 
             # Today's close as price (this runs at 20:30 after market close)
-            today = date.today()
+            today = pendulum.now("America/New_York").date()
             aggs = client.get_aggs(ticker, 1, "day", today - timedelta(days=5), today, limit=5)
             if aggs:
                 price = aggs[-1].close

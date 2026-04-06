@@ -116,7 +116,7 @@ services:
   dagster-code:
     build:
       context: ../..
-      dockerfile: deploy/dagster/Dockerfile
+      dockerfile: deploy/docker/Dockerfile.dagster
     image: finpipe-dagster
     restart: unless-stopped
     environment:

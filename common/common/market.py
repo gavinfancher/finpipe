@@ -29,7 +29,7 @@ def trading_dates() -> dict[str, date]:
     Returns a dict with keys: 'prev', '5d', '1m', '3m', '6m', '1y', 'ytd', '3y'
     mapped to the appropriate NYSE trading date.
     """
-    today = date.today()
+    today = datetime.now(NY).date()
     start = today - timedelta(days=1200)
     schedule = _nyse.schedule(start_date=start, end_date=today)
     days = [d.date() for d in schedule.index]
