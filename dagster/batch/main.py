@@ -232,8 +232,8 @@ def main():
     parser.add_argument('--months', type=int, nargs='+', required=True)
     parser.add_argument('--mode', choices=['concurrent', 'sequential'], default='concurrent')
     parser.add_argument('--workers', type=int, default=16)
-    parser.add_argument('--bucket', default='finpipe-root')
-    parser.add_argument('--prefix', default='dev/lakehouse')
+    parser.add_argument('--bucket', default='finpipe-lakehouse')
+    parser.add_argument('--prefix', default='')
     parser.add_argument('--dry-run', action='store_true')
     args = parser.parse_args()
 

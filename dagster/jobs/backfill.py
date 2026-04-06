@@ -230,7 +230,6 @@ def run_backfill(config: BackfillConfig, instance_id: str) -> str:
                     pass
 
                 if proc_status == "DONE":
-                    log.info("backfill staging complete")
                     _, final_out, _ = ssm_run(instance_id, [
                         f"tail -n +{last_line_count + 1} {log_file}",
                     ])
@@ -238,6 +237,21 @@ def run_backfill(config: BackfillConfig, instance_id: str) -> str:
                         for line in final_out.strip().split("\n"):
                             if line.strip():
                                 log.info(line)
+
+                    # check exit code
+                    _, exit_out, _ = ssm_run(instance_id, [
+                        f"wait $(cat {pid_file}) 2>/dev/null; cat {pid_file} | xargs -I{{}} bash -c 'wait {{}} 2>/dev/null; echo $?'",
+                    ])
+                    # fallback: check if log contains traceback
+                    _, grep_out, _ = ssm_run(instance_id, [
+                        f"grep -c 'Traceback\\|Error\\|Exception' {log_file} || echo 0",
+                    ])
+                    error_count = int(grep_out.strip()) if grep_out.strip().isdigit() else 0
+                    if error_count > 0:
+                        log.error("backfill script had errors — check logs above")
+                        return "failed"
+
+                    log.info("backfill staging complete")
                     return "success"
 
     except Exception as e:
