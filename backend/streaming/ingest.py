@@ -40,6 +40,7 @@ client = WebSocketClient(
     api_key=MASSIVE_API_KEY,
     feed=Feed.Delayed,
     market=Market.Stocks,
+    verbose=True,
 )
 
 producer: AIOKafkaProducer | None = None
