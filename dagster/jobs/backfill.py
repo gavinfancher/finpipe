@@ -21,18 +21,22 @@ from dagster import (
     op,
 )
 
-from deploy.aws.ec2.backfill.instance import create as launch_backfill, terminate
-from deploy.aws.config import REGION
-
 import boto3
 
 REPO_URL = "https://github.com/gavinfancher/massive-ingestion.git"
+REGION = "us-east-1"
 
 
 class BackfillConfig(Config):
     year: int = 2025
     months: list[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     workers: int = 16
+
+
+def _get_deploy_imports():
+    """Lazy import deploy scripts — only available when running from full repo."""
+    from deploy.aws.ec2.backfill.instance import create as launch_backfill, terminate
+    return launch_backfill, terminate
 
 
 def ssm_run(instance_id, commands, timeout=600, log_fn=None):
@@ -114,6 +118,7 @@ def launch_instance():
     log = get_dagster_logger()
 
     log.info("launching backfill spot instance...")
+    launch_backfill, _ = _get_deploy_imports()
     ts = pendulum.now().format("YYYY-MM-DD-HH-mm")
     instance_id, public_ip = launch_backfill(name_suffix=ts)
     log.info(f"instance id: {instance_id}, ip: {public_ip}")
@@ -253,6 +258,7 @@ def terminate_and_report(instance_id: str, backfill_result: str):
     """Terminate the instance. Always runs regardless of backfill outcome."""
     log = get_dagster_logger()
 
+    _, terminate = _get_deploy_imports()
     log.info(f"terminating {instance_id}...")
     terminate(instance_id)
     log.info(f"{instance_id} terminated")
