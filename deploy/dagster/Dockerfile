@@ -3,14 +3,19 @@ FROM python:3.12-slim
 
 COPY --from=uv /uv /uvx /bin/
 
-WORKDIR /opt/dagster/app
+WORKDIR /workspace
 
-# Copy dependency files first for layer caching
-COPY common/pyproject.toml /common/pyproject.toml
-COPY dagster/pyproject.toml ./
+# Copy workspace root + dependency files first for layer caching
+COPY pyproject.toml /workspace/pyproject.toml
+COPY common/pyproject.toml /workspace/common/pyproject.toml
+COPY common/common/__init__.py /workspace/common/common/__init__.py
+COPY dagster/pyproject.toml /workspace/dagster/pyproject.toml
+
+WORKDIR /workspace/dagster
+RUN uv sync --no-dev --no-install-project
 
 # Copy shared library
-COPY common/ /common/
+COPY common/ /workspace/common/
 
 # Copy application code
 COPY dagster/definitions.py ./
@@ -20,6 +25,7 @@ COPY dagster/resources/ resources/
 COPY dagster/sensors/ sensors/
 COPY dagster/transforms/ transforms/
 
+# Install the project itself
 RUN uv sync --no-dev --no-editable
 
 ENV DAGSTER_HOME=/opt/dagster/dagster_home
