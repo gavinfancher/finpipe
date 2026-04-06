@@ -31,8 +31,7 @@ def create(name_suffix: str | None = None) -> tuple[str, str]:
     """
     sg_id = find_sg(SG_NAME)
     if not sg_id:
-        print(f"error: security group {SG_NAME} not found — run backfill/sg.py first")
-        sys.exit(1)
+        raise RuntimeError(f"security group {SG_NAME} not found — run infra/ec2/backfill/sg.py first")
 
     ami_id = get_ubuntu_ami()
     instance_name = f"{INSTANCE_NAME}-{name_suffix}" if name_suffix else INSTANCE_NAME
