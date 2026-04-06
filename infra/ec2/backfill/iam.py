@@ -7,13 +7,13 @@ Policies:
   - SSM (remote commands, no SSH needed)
 
 Usage:
-    uv run python deploy/aws/ec2/backfill/iam.py
+    uv run python infra/ec2/backfill/iam.py
 """
 
 import json
 import time
 
-from deploy.aws.config import iam, REGION, ACCOUNT_ID
+from infra.config import iam, REGION, ACCOUNT_ID
 
 ROLE_NAME = "finpipe-backfill-role"
 PROFILE_NAME = "finpipe-backfill-profile"

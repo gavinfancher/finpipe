@@ -2,17 +2,17 @@
 Create the finpipe-ec2-sg security group.
 
 Rules:
-  - Inbound: SSH (22), ECS ingest → 9092 (Redpanda) + 8081 (control API)
+  - Inbound: SSH (22)
   - Outbound: HTTPS, HTTP, UDP 7844 (cloudflared), 5432 → RDS, 6379 → Valkey
 
-Cross-links to finpipe-rds-sg, finpipe-valkey-sg, and finpipe-ecs-ingest-sg
-when they exist. Also adds corresponding ingress rules on RDS/Valkey SGs.
+Cross-links to finpipe-rds-sg and finpipe-valkey-sg when they exist.
+Also adds corresponding ingress rules on RDS/Valkey SGs.
 
 Usage:
-    uv run python deploy/aws/ec2/control/sg.py
+    uv run python infra/ec2/control/sg.py
 """
 
-from deploy.aws.config import ec2, VPC_ID, find_sg
+from infra.config import ec2, VPC_ID, find_sg
 
 SG_NAME = "finpipe-ec2-sg"
 
@@ -50,27 +50,6 @@ def create() -> str:
         }],
     )
     print("  ingress: 22 (SSH)")
-
-    # ECS ingest → Redpanda + control API
-    ecs_sg_id = find_sg("finpipe-ecs-ingest-sg")
-    if ecs_sg_id:
-        for port, label in [(9092, "Redpanda"), (8081, "control API")]:
-            try:
-                ec2.authorize_security_group_ingress(
-                    GroupId=sg_id,
-                    IpPermissions=[{
-                        "IpProtocol": "tcp",
-                        "FromPort": port,
-                        "ToPort": port,
-                        "UserIdGroupPairs": [{"GroupId": ecs_sg_id}],
-                    }],
-                )
-            except Exception as e:
-                if "already exists" not in str(e):
-                    raise
-            print(f"  ingress: {port} ← ECS ingest ({label})")
-    else:
-        print("  warning: finpipe-ecs-ingest-sg not found, skipping ECS inbound")
 
     # --- outbound ---
 

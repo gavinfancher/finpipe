@@ -8,13 +8,13 @@ Policies:
   - SSM (remote shell access)
 
 Usage:
-    uv run python deploy/aws/ec2/control/iam.py
+    uv run python infra/ec2/control/iam.py
 """
 
 import json
 import time
 
-from deploy.aws.config import iam, REGION, ACCOUNT_ID
+from infra.config import iam, REGION, ACCOUNT_ID
 
 ROLE_NAME = "finpipe-ec2-role"
 PROFILE_NAME = "finpipe-ec2-profile"

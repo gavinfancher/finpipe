@@ -2,7 +2,7 @@
 Shared configuration for all AWS provisioning scripts.
 
 Provides region, VPC/subnet IDs, account ID, boto3 clients, and
-common helpers. Every script under deploy/aws/ imports from here
+common helpers. Every script under infra/ imports from here
 instead of duplicating setup.
 """
 
@@ -26,10 +26,8 @@ SUBNET_1B = "subnet-097b8d2beacf96f1b"  # us-east-1b
 
 ec2 = boto3.client("ec2", region_name=REGION)
 iam = boto3.client("iam")
-ecs = boto3.client("ecs", region_name=REGION)
 rds = boto3.client("rds", region_name=REGION)
 elasticache = boto3.client("elasticache", region_name=REGION)
-logs = boto3.client("logs", region_name=REGION)
 ssm = boto3.client("ssm", region_name=REGION)
 
 

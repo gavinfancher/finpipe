@@ -4,10 +4,10 @@ Create the finpipe-rds-subnet DB subnet group.
 Groups us-east-1a + us-east-1b subnets for RDS placement.
 
 Usage:
-    uv run python deploy/aws/rds/subnet.py
+    uv run python infra/rds/subnet.py
 """
 
-from deploy.aws.config import rds, SUBNET_1A, SUBNET_1B
+from infra.config import rds, SUBNET_1A, SUBNET_1B
 
 SUBNET_GROUP_NAME = "finpipe-rds-subnet"
 

@@ -4,10 +4,10 @@ Create the finpipe-valkey-subnet cache subnet group.
 Groups us-east-1a + us-east-1b subnets for ElastiCache placement.
 
 Usage:
-    uv run python deploy/aws/valkey/subnet.py
+    uv run python infra/valkey/subnet.py
 """
 
-from deploy.aws.config import elasticache, SUBNET_1A, SUBNET_1B
+from infra.config import elasticache, SUBNET_1A, SUBNET_1B
 
 SUBNET_GROUP_NAME = "finpipe-valkey-subnet"
 

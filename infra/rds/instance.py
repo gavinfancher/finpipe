@@ -2,19 +2,19 @@
 Provision the finpipe-db RDS Postgres instance.
 
 Requires:
-  - finpipe-rds-sg security group (deploy/aws/rds/sg.py)
-  - finpipe-rds-subnet DB subnet group (deploy/aws/rds/subnet.py)
+  - finpipe-rds-sg security group (infra/rds/sg.py)
+  - finpipe-rds-subnet DB subnet group (infra/rds/subnet.py)
   - finpipe/db-password secret in Secrets Manager
 
 Usage:
-    uv run python deploy/aws/rds/instance.py
+    uv run python infra/rds/instance.py
 """
 
 import sys
 
 import boto3
 
-from deploy.aws.config import rds, REGION, AZ, find_sg
+from infra.config import rds, REGION, AZ, find_sg
 
 DB_INSTANCE_ID = "finpipe-db"
 DB_NAME = "finpipe"

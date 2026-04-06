@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 
-from deploy.aws.ec2.backfill.instance import create as launch_backfill, terminate
+from infra.ec2.backfill.instance import create as launch_backfill, terminate
 
 FILES_TO_UPLOAD = ["main.py", "pyproject.toml", ".python-version", ".env"]
 SSH_USER = "ubuntu"

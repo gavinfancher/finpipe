@@ -35,7 +35,7 @@ class BackfillConfig(Config):
 
 def _get_deploy_imports():
     """Lazy import deploy scripts — only available when running from full repo."""
-    from deploy.aws.ec2.backfill.instance import create as launch_backfill, terminate
+    from infra.ec2.backfill.instance import create as launch_backfill, terminate
     return launch_backfill, terminate
 
 

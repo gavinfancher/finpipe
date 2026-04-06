@@ -2,17 +2,17 @@
 Provision the finpipe-cache ElastiCache Valkey replication group.
 
 Requires:
-  - finpipe-valkey-sg security group (deploy/aws/valkey/sg.py)
-  - finpipe-valkey-subnet cache subnet group (deploy/aws/valkey/subnet.py)
+  - finpipe-valkey-sg security group (infra/valkey/sg.py)
+  - finpipe-valkey-subnet cache subnet group (infra/valkey/subnet.py)
 
 Usage:
-    uv run python deploy/aws/valkey/instance.py
+    uv run python infra/valkey/instance.py
 """
 
 import sys
 import time
 
-from deploy.aws.config import elasticache, AZ, find_sg
+from infra.config import elasticache, AZ, find_sg
 
 REPL_GROUP_ID = "finpipe-cache"
 SG_NAME = "finpipe-valkey-sg"

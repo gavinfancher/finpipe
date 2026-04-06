@@ -6,16 +6,16 @@ data ingestion from the Massive API. Designed to be called from dagster
 or run standalone.
 
 Requires:
-  - finpipe-backfill-profile instance profile (deploy/aws/ec2/backfill/iam.py)
-  - finpipe-backfill-sg security group (deploy/aws/ec2/backfill/sg.py)
+  - finpipe-backfill-profile instance profile (infra/ec2/backfill/iam.py)
+  - finpipe-backfill-sg security group (infra/ec2/backfill/sg.py)
 
 Usage:
-    uv run python deploy/aws/ec2/backfill/instance.py
+    uv run python infra/ec2/backfill/instance.py
 """
 
 import sys
 
-from deploy.aws.config import ec2, SUBNET_1A, find_sg, get_ubuntu_ami
+from infra.config import ec2, SUBNET_1A, find_sg, get_ubuntu_ami
 
 SG_NAME = "finpipe-backfill-sg"
 PROFILE_NAME = "finpipe-backfill-profile"

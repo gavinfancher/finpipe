@@ -2,17 +2,17 @@
 Launch the finpipe-streaming EC2 instance (control node).
 
 Requires:
-  - finpipe-ec2-profile instance profile (deploy/aws/ec2/control/iam.py)
-  - finpipe-ec2-sg security group (deploy/aws/ec2/control/sg.py)
+  - finpipe-ec2-profile instance profile (infra/ec2/control/iam.py)
+  - finpipe-ec2-sg security group (infra/ec2/control/sg.py)
 
 Usage:
-    uv run python deploy/aws/ec2/control/instance.py
+    uv run python infra/ec2/control/instance.py
 """
 
 import os
 import sys
 
-from deploy.aws.config import ec2, AZ, SUBNET_1A, find_sg, get_ubuntu_ami
+from infra.config import ec2, AZ, SUBNET_1A, find_sg, get_ubuntu_ami
 
 SG_NAME = "finpipe-ec2-sg"
 PROFILE_NAME = "finpipe-ec2-profile"

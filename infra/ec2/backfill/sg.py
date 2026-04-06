@@ -6,10 +6,10 @@ Rules:
   - Outbound: HTTPS (Massive API, S3, SSM), HTTP (package installs)
 
 Usage:
-    uv run python deploy/aws/ec2/backfill/sg.py
+    uv run python infra/ec2/backfill/sg.py
 """
 
-from deploy.aws.config import ec2, VPC_ID, find_sg
+from infra.config import ec2, VPC_ID, find_sg
 
 SG_NAME = "finpipe-backfill-sg"
 
