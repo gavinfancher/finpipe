@@ -33,7 +33,7 @@ services:
   ws-relay:
     build:
       context: ../..
-      dockerfile: deploy/docker/Dockerfile
+      dockerfile: deploy/docker/Dockerfile.streaming
     restart: unless-stopped
     ports:
       - "8080:8080"
@@ -56,7 +56,7 @@ services:
   control:
     build:
       context: ../..
-      dockerfile: deploy/docker/Dockerfile
+      dockerfile: deploy/docker/Dockerfile.streaming
     restart: unless-stopped
     command: ["uv", "run", "python", "-m", "streaming.control"]
     ports:
@@ -76,7 +76,7 @@ services:
   ingest:
     build:
       context: ../..
-      dockerfile: deploy/docker/Dockerfile
+      dockerfile: deploy/docker/Dockerfile.streaming
     command: ["uv", "run", "python", "-m", "streaming.ingest"]
     restart: unless-stopped
     extra_hosts:
