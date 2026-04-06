@@ -25,6 +25,9 @@ jobs:
           if echo "$CHANGED" | grep -qvE '^(dagster/)'; then
             echo "streaming=true" >> "$GITHUB_OUTPUT"
           fi
+          if echo "$CHANGED" | grep -q 'cloudflared-config.yml'; then
+            echo "cloudflared=true" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Get EC2 IP
         id: ec2
@@ -45,12 +48,20 @@ jobs:
           echo "$SSH_KEY" > key.pem
           chmod 600 key.pem
 
+          ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ steps.ec2.outputs.ip }} \
+            "cd /home/ubuntu/finpipe && git pull"
+
           if [ "${{ steps.changes.outputs.streaming }}" = "true" ]; then
             ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ steps.ec2.outputs.ip }} \
-              "cd /home/ubuntu/finpipe && git pull && cd deploy/ec2 && sudo docker compose up --build -d"
+              "cd /home/ubuntu/finpipe/deploy/ec2 && sudo docker compose up --build -d"
           elif [ "${{ steps.changes.outputs.dagster }}" = "true" ]; then
             ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ steps.ec2.outputs.ip }} \
-              "cd /home/ubuntu/finpipe && git pull && cd deploy/ec2 && sudo docker compose up --build -d dagster-code && sudo docker compose restart dagster-webserver dagster-daemon"
+              "cd /home/ubuntu/finpipe/deploy/ec2 && sudo docker compose up --build -d dagster-code && sudo docker compose restart dagster-webserver dagster-daemon"
+          fi
+
+          if [ "${{ steps.changes.outputs.cloudflared }}" = "true" ]; then
+            ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ steps.ec2.outputs.ip }} \
+              "cd /home/ubuntu/finpipe/deploy/ec2 && sudo docker compose restart cloudflared"
           fi
 
           rm key.pem
