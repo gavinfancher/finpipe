@@ -82,10 +82,13 @@ finpipe/
 ├── common/         # shared schemas, trading calendar, Redis keys
 ├── dagster/        # batch ingestion jobs (backfill, close-of-day)
 ├── deploy/         # deployment configs (see deploy/README.md)
-│   ├── aws/        #   infrastructure provisioning (boto3)
-│   ├── docker/     #   shared Dockerfile
+│   ├── docker/     #   Dockerfiles (streaming, dagster)
 │   ├── ec2/        #   EC2 docker-compose + cloudflared
 │   └── local/      #   local dev docker-compose
+├── infra/          # AWS resource provisioning (boto3)
+│   ├── ec2/        #   control node + backfill spot instances
+│   ├── rds/        #   PostgreSQL
+│   └── valkey/     #   ElastiCache
 └── frontend/       # React/TypeScript SPA (Vite, Cloudflare Pages)
 ```
 
