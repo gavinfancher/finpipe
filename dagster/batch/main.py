@@ -43,11 +43,10 @@ def load_credentials():
     """Load Massive API creds from Secrets Manager, fall back to .env for local dev."""
     try:
         sm = boto3.client('secretsmanager', region_name='us-east-1')
-        resp = sm.get_secret_value(SecretId=SECRET_NAME)
-        import json
-        secret = json.loads(resp['SecretString'])
-        os.environ.setdefault('MASSIVE_ACCESS_KEY', secret['access_key'])
-        os.environ.setdefault('MASSIVE_SECRET_KEY', secret['secret_key'])
+        access_key = sm.get_secret_value(SecretId='finpipe/massive-access-key')['SecretString']
+        secret_key = sm.get_secret_value(SecretId='finpipe/massive')['SecretString']
+        os.environ.setdefault('MASSIVE_ACCESS_KEY', access_key)
+        os.environ.setdefault('MASSIVE_SECRET_KEY', secret_key)
         log.info('loaded credentials from Secrets Manager')
         return
     except Exception:

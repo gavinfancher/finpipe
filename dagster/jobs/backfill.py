@@ -145,6 +145,8 @@ def stage_backfill(context: OpExecutionContext, config: BackfillConfig) -> str:
         months_str = " ".join(str(m) for m in config.months)
         context.log.info(f"starting backfill: year={config.year} months={months_str} workers={config.workers}")
 
+        log_file = "/tmp/backfill.log"
+        # run backfill with output to file (SSM has 24KB output limit)
         status, stdout, stderr = ssm_run(instance_id, [
             f"cd /home/ubuntu/finpipe && /root/.local/bin/uv run python dagster/batch/main.py"
             f" --year {config.year}"
@@ -152,16 +154,26 @@ def stage_backfill(context: OpExecutionContext, config: BackfillConfig) -> str:
             f" --mode concurrent"
             f" --workers {config.workers}"
             f" --bucket {S3_BUCKET}"
-            f" --prefix ''",
+            f" > {log_file} 2>&1"
+            f" ; echo EXIT_CODE=$?",
         ], timeout=3600)
-        log_output(context, stdout, stderr)
 
-        if status != "Success":
-            raise RuntimeError(f"backfill failed (SSM status: {status})")
+        # fetch log in chunks (SSM has 24KB output limit per invocation)
+        offset = 0
+        chunk_lines = 200
+        while True:
+            _, chunk, _ = ssm_run(instance_id, [
+                f"sed -n '{offset + 1},{offset + chunk_lines}p' {log_file}",
+            ])
+            if not chunk.strip():
+                break
+            for line in chunk.strip().splitlines():
+                print(line)
+            offset += chunk_lines
 
-        # check for errors in output
-        if "Traceback" in stdout or "Error" in stderr:
-            raise RuntimeError("backfill script errored — see stdout/stderr above")
+        # check if the script succeeded
+        if "EXIT_CODE=0" not in stdout:
+            raise RuntimeError("backfill script failed — see stdout above")
 
         context.log.info("backfill staging complete")
         return "success"
