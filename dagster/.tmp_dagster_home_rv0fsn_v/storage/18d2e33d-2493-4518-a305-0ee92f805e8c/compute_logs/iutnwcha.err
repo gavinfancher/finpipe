@@ -1,0 +1,40 @@
+[32m2026-04-06 16:59:27 -0500[0m - dagster - [34mDEBUG[0m - backfill_job - 18d2e33d-2493-4518-a305-0ee92f805e8c - 18157 - LOGS_CAPTURED - Started capturing logs in process (pid: 18157).
+[32m2026-04-06 16:59:27 -0500[0m - dagster - [34mDEBUG[0m - backfill_job - 18d2e33d-2493-4518-a305-0ee92f805e8c - 18157 - launch_instance - STEP_START - Started execution of step "launch_instance".
+[32m2026-04-06 16:59:27 -0500[0m - dagster - [34mINFO[0m - backfill_job - 18d2e33d-2493-4518-a305-0ee92f805e8c - launch_instance - launching backfill spot instance...
+[32m2026-04-06 16:59:28 -0500[0m - dagster - [34mERROR[0m - [31mbackfill_job - 18d2e33d-2493-4518-a305-0ee92f805e8c - 18157 - launch_instance - STEP_FAILURE - Execution of step "launch_instance" failed.
+
+SystemExit: 1
+
+Stack Trace:
+  File "/Users/gavin/projects/finpipe/.venv/lib/python3.12/site-packages/dagster/_core/execution/plan/execute_plan.py", line 247, in dagster_event_sequence_for_step
+    yield from check.generator(step_events)
+  File "/Users/gavin/projects/finpipe/.venv/lib/python3.12/site-packages/dagster/_core/execution/plan/execute_step.py", line 505, in core_dagster_event_sequence_for_step
+    for user_event in _step_output_error_checked_user_event_sequence(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/gavin/projects/finpipe/.venv/lib/python3.12/site-packages/dagster/_core/execution/plan/execute_step.py", line 184, in _step_output_error_checked_user_event_sequence
+    for user_event in user_event_sequence:
+                      ^^^^^^^^^^^^^^^^^^^
+  File "/Users/gavin/projects/finpipe/.venv/lib/python3.12/site-packages/dagster/_core/execution/plan/execute_step.py", line 88, in _process_asset_results_to_events
+    for user_event in user_event_sequence:
+                      ^^^^^^^^^^^^^^^^^^^
+  File "/Users/gavin/projects/finpipe/.venv/lib/python3.12/site-packages/dagster/_core/execution/plan/compute.py", line 188, in execute_core_compute
+    for step_output in _yield_compute_results(step_context, inputs, compute_fn, compute_context):
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/gavin/projects/finpipe/.venv/lib/python3.12/site-packages/dagster/_core/execution/plan/compute.py", line 157, in _yield_compute_results
+    for event in iterate_with_context(
+                 ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/gavin/projects/finpipe/.venv/lib/python3.12/site-packages/dagster/_utils/__init__.py", line 394, in iterate_with_context
+    next_output = next(iterator)
+                  ^^^^^^^^^^^^^^
+  File "/Users/gavin/projects/finpipe/.venv/lib/python3.12/site-packages/dagster/_core/execution/plan/compute_generator.py", line 135, in _coerce_op_compute_fn_to_iterator
+    result = invoke_compute_fn(
+             ^^^^^^^^^^^^^^^^^^
+  File "/Users/gavin/projects/finpipe/.venv/lib/python3.12/site-packages/dagster/_core/execution/plan/compute_generator.py", line 115, in invoke_compute_fn
+    return fn(context, **args_to_pass) if context_arg_provided else fn(**args_to_pass)
+                                                                    ^^^^^^^^^^^^^^^^^^
+  File "/Users/gavin/projects/finpipe/dagster/jobs/backfill.py", line 127, in launch_instance
+    instance_id, public_ip = launch_backfill(name_suffix=ts)
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/gavin/projects/finpipe/infra/ec2/backfill/instance.py", line 35, in create
+    sys.exit(1)
+[0m

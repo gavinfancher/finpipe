@@ -13,9 +13,21 @@ class EMRServerlessResource(ConfigurableResource):
     execution_role_arn: str = ""
     region: str = "us-east-1"
     s3_bucket: str = "finpipe-lakehouse"
+    app_name: str = "finpipe-spark"
 
     def _client(self):
         return boto3.client("emr-serverless", region_name=self.region)
+
+    def _resolve_application_id(self) -> str:
+        """Return application_id if set, otherwise look up by app_name."""
+        if self.application_id:
+            return self.application_id
+        client = self._client()
+        resp = client.list_applications()
+        for app in resp.get("applications", []):
+            if app["name"] == self.app_name and app["state"] in ("CREATED", "STARTED", "STOPPED"):
+                return app["id"]
+        raise RuntimeError(f"no EMR Serverless application named '{self.app_name}' found — run infra/emr/application.py to create it")
 
     def submit_spark_job(
         self,
@@ -54,7 +66,7 @@ class EMRServerlessResource(ConfigurableResource):
             job_driver["sparkSubmit"]["entryPointArguments"] = args
 
         resp = client.start_job_run(
-            applicationId=self.application_id,
+            applicationId=self._resolve_application_id(),
             executionRoleArn=self.execution_role_arn,
             jobDriver=job_driver,
             name=name,
@@ -71,7 +83,7 @@ class EMRServerlessResource(ConfigurableResource):
 
         while True:
             resp = client.get_job_run(
-                applicationId=self.application_id,
+                applicationId=self._resolve_application_id(),
                 jobRunId=job_run_id,
             )
             state = resp["jobRun"]["state"]
