@@ -1,15 +1,23 @@
 """
-Dagster job: provision EC2 spot → SSM setup → run backfill → terminate.
+Dagster job: backfill historical data from Massive S3 into Iceberg.
 
-No SSH keys needed. All remote commands run via SSM Run Command.
-Credentials come from Secrets Manager, code from GitHub.
+Flow:
+  1. Launch EC2 spot (c5n.4xlarge) via infra.ec2.backfill
+  2. SSM: clone repo, install deps, run batch/main.py with CLI args
+     → downloads .csv.gz from Massive, stages parquet to S3
+  3. Terminate spot instance
+  4. Submit EMR Serverless job: staged parquet → Iceberg bronze (with --cleanup)
+
+The batch step accepts --year and --months args so you can backfill
+incrementally without doing everything at once.
 
 Usage:
-    uv run dagster dev -f dagster_backfill.py
+    uv run dagster dev -f definitions.py
 """
 
 import time
 
+import boto3
 import pendulum
 from dagster import (
     Config,
@@ -21,10 +29,11 @@ from dagster import (
     op,
 )
 
-import boto3
+from resources.emr import EMRServerlessResource
 
-REPO_URL = "https://github.com/gavinfancher/massive-ingestion.git"
+REPO_URL = "https://github.com/gavinfancher/finpipe.git"
 REGION = "us-east-1"
+S3_BUCKET = "finpipe-lakehouse"
 
 
 class BackfillConfig(Config):
@@ -33,8 +42,8 @@ class BackfillConfig(Config):
     workers: int = 16
 
 
-def _get_deploy_imports():
-    """Lazy import deploy scripts — only available when running from full repo."""
+def _get_infra_imports():
+    """Lazy import infra scripts — only available when running from full repo."""
     from infra.ec2.backfill.instance import create as launch_backfill, terminate
     return launch_backfill, terminate
 
@@ -65,21 +74,18 @@ def ssm_run(instance_id, commands, timeout=600, log_fn=None):
         )
         status = result["Status"]
 
-        # stream new output since last poll
         if log_fn:
             stdout = result.get("StandardOutputContent", "")
             stderr = result.get("StandardErrorContent", "")
 
             if len(stdout) > last_stdout_len:
-                new_lines = stdout[last_stdout_len:].strip().split("\n")
-                for line in new_lines:
+                for line in stdout[last_stdout_len:].strip().split("\n"):
                     if line.strip():
                         log_fn("info", line)
                 last_stdout_len = len(stdout)
 
             if len(stderr) > last_stderr_len:
-                new_lines = stderr[last_stderr_len:].strip().split("\n")
-                for line in new_lines:
+                for line in stderr[last_stderr_len:].strip().split("\n"):
                     if line.strip():
                         log_fn("warning", line)
                 last_stderr_len = len(stderr)
@@ -110,38 +116,34 @@ def wait_for_ssm(instance_id, timeout=300):
 # ---------- ops ----------
 
 
-@op(
-    out={"instance_id": Out(str)}
-)
+@op(out={"instance_id": Out(str)})
 def launch_instance():
-    """Launch EC2 spot instance."""
+    """Launch EC2 spot instance for backfill."""
     log = get_dagster_logger()
 
     log.info("launching backfill spot instance...")
-    launch_backfill, _ = _get_deploy_imports()
+    launch_backfill, _ = _get_infra_imports()
     ts = pendulum.now().format("YYYY-MM-DD-HH-mm")
     instance_id, public_ip = launch_backfill(name_suffix=ts)
-    log.info(f"instance id: {instance_id}, ip: {public_ip}")
+    log.info("instance id: %s, ip: %s", instance_id, public_ip)
 
     return instance_id
 
 
-@op(
-    out={"ssm_ready": Out(Nothing)}
-)
+@op(out={"ssm_ready": Out(Nothing)})
 def wait_for_ssm_agent(instance_id: str):
     """Wait for the SSM agent to register and come online."""
     log = get_dagster_logger()
-    log.info(f"waiting for SSM agent on {instance_id}...")
+    log.info("waiting for SSM agent on %s...", instance_id)
 
     start = time.monotonic()
     wait_for_ssm(instance_id, timeout=300)
-    log.info(f"SSM agent online ({time.monotonic() - start:.0f}s)")
+    log.info("SSM agent online (%.0fs)", time.monotonic() - start)
 
 
 @op(
     ins={"ssm_ready": In(Nothing)},
-    out={"code_ready": Out(Nothing)}
+    out={"code_ready": Out(Nothing)},
 )
 def pull_code(instance_id: str):
     """Clone repo and install dependencies via SSM."""
@@ -150,60 +152,58 @@ def pull_code(instance_id: str):
     def log_fn(level, msg):
         getattr(log, level)(msg)
 
-    log.info(f"cloning {REPO_URL}")
-    status, stdout, stderr = ssm_run(instance_id, [
-        f"git clone {REPO_URL} /home/ubuntu/massive-ingestion",
+    log.info("cloning %s", REPO_URL)
+    status, _, stderr = ssm_run(instance_id, [
+        f"git clone {REPO_URL} /home/ubuntu/finpipe",
     ], log_fn=log_fn)
     if status != "Success":
         raise RuntimeError(f"git clone failed: {stderr}")
-    log.info("repo cloned")
 
     log.info("installing uv and dependencies")
-    status, stdout, stderr = ssm_run(instance_id, [
+    status, _, stderr = ssm_run(instance_id, [
         "curl -LsSf https://astral.sh/uv/install.sh | sh",
-        "cd /home/ubuntu/massive-ingestion && /root/.local/bin/uv sync",
+        "cd /home/ubuntu/finpipe && /root/.local/bin/uv sync",
     ], timeout=120, log_fn=log_fn)
     if status != "Success":
         raise RuntimeError(f"dependency install failed: {stderr}")
     log.info("dependencies installed")
 
 
-
-# ---------- job ----------
-
-
 @op(ins={"code_ready": In(Nothing)}, out=Out(str))
-def run_backfill_safe(config: BackfillConfig, instance_id: str) -> str:
-    """Run backfill in background, tail log file for live output."""
+def run_backfill(config: BackfillConfig, instance_id: str) -> str:
+    """Run batch/main.py on the spot instance via SSM.
+
+    Stages parquet files to s3://finpipe-lakehouse/bronze/staged/
+    """
     log = get_dagster_logger()
-    ssm = boto3.client("ssm", region_name=REGION)
     months_str = " ".join(str(m) for m in config.months)
     log_file = "/tmp/backfill.log"
     pid_file = "/tmp/backfill.pid"
 
-    log.info(f"starting backfill: year={config.year} months={months_str} workers={config.workers}")
+    log.info("starting backfill: year=%d months=%s workers=%d",
+             config.year, months_str, config.workers)
 
     try:
-        # launch backfill in background, write output to log file
         cmd = (
-            f"cd /home/ubuntu/massive-ingestion && /root/.local/bin/uv run main.py"
+            f"cd /home/ubuntu/finpipe && /root/.local/bin/uv run python dagster/batch/main.py"
             f" --year {config.year}"
             f" --months {months_str}"
             f" --mode concurrent"
             f" --workers {config.workers}"
+            f" --bucket {S3_BUCKET}"
+            f" --prefix ''"
             f" > {log_file} 2>&1 & echo $! > {pid_file}"
         )
         status, _, stderr = ssm_run(instance_id, [cmd])
         if status != "Success":
-            log.error(f"failed to launch backfill: {stderr}")
+            log.error("failed to launch backfill: %s", stderr)
             return "failed"
 
-        # poll the log file for new output
+        # poll log file for output
         last_line_count = 0
         while True:
             time.sleep(10)
 
-            # check if process is still running
             check_status, stdout, _ = ssm_run(instance_id, [
                 f"cat {pid_file} | xargs ps -p > /dev/null 2>&1 && echo RUNNING || echo DONE",
                 f"wc -l < {log_file}",
@@ -230,12 +230,7 @@ def run_backfill_safe(config: BackfillConfig, instance_id: str) -> str:
                     pass
 
                 if proc_status == "DONE":
-                    # get exit code
-                    _, exit_out, _ = ssm_run(instance_id, [
-                        f"wait $(cat {pid_file}) 2>/dev/null; cat {pid_file} | xargs -I{{}} sh -c 'wait {{}} 2>/dev/null; echo $?'"
-                    ])
-                    log.info("backfill process finished")
-                    # grab any remaining output
+                    log.info("backfill staging complete")
                     _, final_out, _ = ssm_run(instance_id, [
                         f"tail -n +{last_line_count + 1} {log_file}",
                     ])
@@ -243,28 +238,45 @@ def run_backfill_safe(config: BackfillConfig, instance_id: str) -> str:
                         for line in final_out.strip().split("\n"):
                             if line.strip():
                                 log.info(line)
-
                     return "success"
 
-        return "success"
-
     except Exception as e:
-        log.error(f"backfill error: {e}")
+        log.error("backfill error: %s", e)
         return "failed"
 
 
 @op
-def terminate_and_report(instance_id: str, backfill_result: str):
-    """Terminate the instance. Always runs regardless of backfill outcome."""
+def terminate_instance(instance_id: str, backfill_result: str):
+    """Terminate the spot instance. Always runs."""
     log = get_dagster_logger()
 
-    _, terminate = _get_deploy_imports()
-    log.info(f"terminating {instance_id}...")
+    _, terminate = _get_infra_imports()
+    log.info("terminating %s...", instance_id)
     terminate(instance_id)
-    log.info(f"{instance_id} terminated")
+    log.info("%s terminated", instance_id)
 
     if backfill_result != "success":
-        raise RuntimeError("backfill did not succeed — instance terminated, check logs above")
+        raise RuntimeError("backfill staging failed — instance terminated, check logs above")
+
+
+@op
+def commit_to_iceberg(emr: EMRServerlessResource, backfill_result: str):
+    """Submit EMR job to write staged parquet to Iceberg bronze, then clean up."""
+    if backfill_result != "success":
+        raise RuntimeError("skipping EMR — backfill staging failed")
+
+    log = get_dagster_logger()
+    script_path = f"s3://{S3_BUCKET}/scripts/staged_to_bronze.py"
+
+    log.info("submitting staged→bronze EMR job")
+    job_run_id = emr.submit_spark_job(
+        script_s3_path=script_path,
+        args=["--cleanup"],
+        name="finpipe-staged-to-bronze",
+    )
+
+    state = emr.wait_for_job(job_run_id)
+    log.info("EMR job complete: %s", state)
 
 
 @graph
@@ -272,8 +284,9 @@ def backfill_graph():
     instance_id = launch_instance()
     ssm_ready = wait_for_ssm_agent(instance_id=instance_id)
     code_ready = pull_code(instance_id=instance_id, ssm_ready=ssm_ready)
-    backfill_result = run_backfill_safe(instance_id=instance_id, code_ready=code_ready)
-    terminate_and_report(instance_id=instance_id, backfill_result=backfill_result)
+    backfill_result = run_backfill(instance_id=instance_id, code_ready=code_ready)
+    terminate_instance(instance_id=instance_id, backfill_result=backfill_result)
+    commit_to_iceberg(backfill_result=backfill_result)
 
 
 backfill_job = backfill_graph.to_job(name="backfill_job")

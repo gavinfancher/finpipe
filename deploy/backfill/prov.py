@@ -2,8 +2,8 @@
 Provision EC2, wait for SSH, upload code, install deps, run backfill.
 
 Usage:
-    uv run python prov.py --year 2025 --months 1 2 3 4 5 6 7 8 9 10 11 12
-    uv run python prov.py --year 2026 --months 3
+    uv run python deploy/backfill/prov.py --year 2025 --months 1 2 3 4 5 6 7 8 9 10 11 12
+    uv run python deploy/backfill/prov.py --year 2026 --months 3
 """
 
 import argparse

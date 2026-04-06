@@ -1,10 +1,10 @@
 """
 Silver asset: enrich bronze minute aggs via EMR Serverless.
 
-Reads staged parquet from S3, adds timestamps and session classification,
-writes to Iceberg table via Glue catalog.
+Reads from Iceberg bronze table, adds timestamps and session classification,
+writes to Iceberg silver table via Glue catalog.
 
-bronze/staged/*.parquet → EMR Serverless (PySpark) → iceberg/finpipe_silver/minute_aggs
+iceberg/finpipe_bronze/equities_minute_aggs → EMR (PySpark) → iceberg/finpipe_silver/equities_minute_aggs
 """
 
 from dagster import (

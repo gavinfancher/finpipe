@@ -1,8 +1,8 @@
 """
 PySpark job: bronze → silver transform.
 
-Reads staged parquet from S3, enriches with timestamps and session
-classification, writes to Iceberg via Glue catalog.
+Reads from Iceberg bronze table, enriches with timestamps and session
+classification, writes to Iceberg silver table via Glue catalog.
 
 Runs on EMR Serverless — submitted by the Dagster silver_minute_aggs asset.
 
@@ -14,9 +14,8 @@ from pyspark.sql import SparkSession
 from pyspark.sql import functions as F
 
 
-S3_BUCKET = "finpipe-lakehouse"
-BRONZE_PATH = f"s3://{S3_BUCKET}/bronze/staged/"
-SILVER_TABLE = "glue.finpipe_silver.minute_aggs"
+BRONZE_TABLE = "glue.finpipe_bronze.equities_minute_aggs"
+SILVER_TABLE = "glue.finpipe_silver.equities_minute_aggs"
 
 
 def add_timestamp(df):
@@ -45,10 +44,9 @@ def add_market_session(df):
 def main():
     spark = SparkSession.builder.appName("finpipe-bronze-to-silver").getOrCreate()
 
-    # read all staged bronze parquet
-    df = spark.read.parquet(BRONZE_PATH)
+    df = spark.table(BRONZE_TABLE)
     row_count = df.count()
-    print(f"read {row_count:,} rows from {BRONZE_PATH}")
+    print(f"read {row_count:,} rows from {BRONZE_TABLE}")
 
     if row_count == 0:
         print("no data to process")
@@ -59,7 +57,7 @@ def main():
     df = add_timestamp(df)
     df = add_market_session(df)
 
-    # write to iceberg — create table if needed, else append
+    # write to iceberg
     if spark.catalog.tableExists(SILVER_TABLE):
         df.writeTo(SILVER_TABLE).overwritePartitions()
         print(f"overwrote partitions in {SILVER_TABLE}")
