@@ -168,6 +168,8 @@ async def run_massive():
             raise
         except Exception as e:
             logger.error("massive: disconnected (%s), retrying in 5s", e)
+        finally:
+            await client.close()
         await asyncio.sleep(5)
 
 

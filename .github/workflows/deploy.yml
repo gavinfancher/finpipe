@@ -6,12 +6,26 @@ on:
     paths-ignore:
       - "**.md"
       - "frontend/**"
-      - "dagster/**"
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changes
+        id: changes
+        run: |
+          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          if echo "$CHANGED" | grep -qE '^(dagster/|common/)'; then
+            echo "dagster=true" >> "$GITHUB_OUTPUT"
+          fi
+          if echo "$CHANGED" | grep -qvE '^(dagster/)'; then
+            echo "streaming=true" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Get EC2 IP
         id: ec2
         env:
@@ -30,6 +44,13 @@ jobs:
         run: |
           echo "$SSH_KEY" > key.pem
           chmod 600 key.pem
-          ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ steps.ec2.outputs.ip }} \
-            "cd /home/ubuntu/finpipe && git pull && cd deploy/ec2 && sudo docker compose up --build -d"
+
+          if [ "${{ steps.changes.outputs.streaming }}" = "true" ]; then
+            ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ steps.ec2.outputs.ip }} \
+              "cd /home/ubuntu/finpipe && git pull && cd deploy/ec2 && sudo docker compose up --build -d"
+          elif [ "${{ steps.changes.outputs.dagster }}" = "true" ]; then
+            ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ steps.ec2.outputs.ip }} \
+              "cd /home/ubuntu/finpipe && git pull && cd deploy/ec2 && sudo docker compose up --build -d dagster-code && sudo docker compose restart dagster-webserver dagster-daemon"
+          fi
+
           rm key.pem

@@ -17,7 +17,7 @@ from deploy.aws.config import ec2, AZ, SUBNET_1A, find_sg, get_ubuntu_ami
 SG_NAME = "finpipe-ec2-sg"
 PROFILE_NAME = "finpipe-ec2-profile"
 KEY_NAME = "macbook-pro-key"
-INSTANCE_TYPE = "t3.small"
+INSTANCE_TYPE = "t3.medium"
 INSTANCE_NAME = "finpipe-streaming"
 
 
