@@ -14,8 +14,9 @@ COPY dagster/pyproject.toml /workspace/dagster/pyproject.toml
 WORKDIR /workspace/dagster
 RUN uv sync --no-dev --no-install-project
 
-# Copy shared library
+# Copy shared library and infra scripts
 COPY common/ /workspace/common/
+COPY infra/ /workspace/infra/
 
 # Copy application code
 COPY dagster/definitions.py ./
