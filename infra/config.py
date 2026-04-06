@@ -29,6 +29,9 @@ iam = boto3.client("iam")
 rds = boto3.client("rds", region_name=REGION)
 elasticache = boto3.client("elasticache", region_name=REGION)
 ssm = boto3.client("ssm", region_name=REGION)
+s3 = boto3.client("s3", region_name=REGION)
+glue = boto3.client("glue", region_name=REGION)
+athena = boto3.client("athena", region_name=REGION)
 
 
 # ---------- helpers ----------

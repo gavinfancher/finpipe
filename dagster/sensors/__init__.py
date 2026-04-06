@@ -1,3 +1,5 @@
 """Sensor definitions for finpipe-dagster."""
 
-all_sensors = []
+from .daily_ingest import daily_ingest_sensor
+
+all_sensors = [daily_ingest_sensor]
