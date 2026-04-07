@@ -6,9 +6,10 @@ Steps (each visible in Dagster UI):
   2. setup_instance    — wait for SSM, clone repo, install deps
   3. run_staging       — run batch/main.py → stage parquet to S3
   4. teardown_spot     — terminate instance
-  5. write_to_iceberg  — EMR Serverless: staged parquet → Iceberg bronze
+  5. commit_to_iceberg — EMR Serverless: staged parquet → Iceberg bronze
 
-If any step fails, teardown_spot still runs to terminate the instance.
+Cleanup: a run status sensor (backfill_cleanup_sensor) monitors for failed runs
+and terminates any orphaned spot instances tagged with project=finpipe.
 
 Usage:
     Trigger from Dagster UI with config:
@@ -23,12 +24,15 @@ import boto3
 import pendulum
 from dagster import (
     Config,
+    DagsterRunStatus,
     In,
     Nothing,
     OpExecutionContext,
     Out,
+    RunStatusSensorContext,
+    graph,
     op,
-    job,
+    run_status_sensor,
 )
 
 from resources.emr import EMRServerlessResource
@@ -118,12 +122,6 @@ def fetch_remote_log(context: OpExecutionContext, instance_id: str, log_file: st
         offset += chunk
 
 
-def terminate_instance(instance_id: str):
-    """Terminate an EC2 instance by ID."""
-    ec2 = boto3.client("ec2", region_name=REGION)
-    ec2.terminate_instances(InstanceIds=[instance_id])
-
-
 # ---------- ops ----------
 
 
@@ -157,7 +155,7 @@ def setup_instance(context: OpExecutionContext, instance_id: str):
     context.log.info("installing uv and dependencies...")
     status, stdout, stderr = ssm_run(instance_id, [
         "curl -LsSf https://astral.sh/uv/install.sh | sh",
-        "cd /home/ubuntu/finpipe && /root/.local/bin/uv sync",
+        "cd /home/ubuntu/finpipe && /root/.local/bin/uv sync --all-packages",
     ], timeout=180)
     log_ssm(context, stdout, stderr)
     if status != "Success":
@@ -188,30 +186,27 @@ def run_staging(context: OpExecutionContext, config: BackfillConfig, instance_id
     if stdout.strip():
         context.log.info(f"SSM stdout: {stdout.strip()}")
 
-    # fetch full backfill log
     fetch_remote_log(context, instance_id, log_file)
 
     if "BACKFILL_EXIT=0" not in stdout:
         raise RuntimeError("backfill staging failed — see logs above")
 
     context.log.info("staging complete")
-    return "success"
+    return instance_id
 
 
 @op
-def teardown_spot(context: OpExecutionContext, instance_id: str, staging_result: str):
-    """Terminate the spot instance. Runs after staging regardless of result."""
+def teardown_spot(context: OpExecutionContext, instance_id: str):
+    """Terminate the spot instance."""
+    ec2 = boto3.client("ec2", region_name=REGION)
     context.log.info(f"terminating {instance_id}...")
-    terminate_instance(instance_id)
+    ec2.terminate_instances(InstanceIds=[instance_id])
     context.log.info(f"{instance_id} terminated")
 
 
 @op
-def write_to_iceberg(context: OpExecutionContext, emr: EMRServerlessResource, staging_result: str):
+def commit_to_iceberg(context: OpExecutionContext, emr: EMRServerlessResource, instance_id: str):
     """Submit EMR job: staged parquet → Iceberg bronze table."""
-    if staging_result != "success":
-        raise RuntimeError("skipping EMR — staging failed")
-
     script_path = f"s3://{S3_BUCKET}/scripts/staged_to_bronze.py"
     context.log.info("submitting staged→bronze EMR job")
     job_run_id = emr.submit_spark_job(
@@ -223,107 +218,42 @@ def write_to_iceberg(context: OpExecutionContext, emr: EMRServerlessResource, st
     context.log.info(f"EMR job complete: {state}")
 
 
-# ---------- job ----------
-
-# Using @job with try/finally for guaranteed teardown, since Dagster graphs
-# don't support "always run this step on failure" natively.
-
-@op(out=Out(str))
-def backfill_pipeline(context: OpExecutionContext, config: BackfillConfig) -> str:
-    """Full backfill pipeline: launch → setup → stage → teardown.
-
-    Wraps the spot instance lifecycle in try/finally so the instance
-    is always terminated, even if staging fails.
-    """
-    instance_id = None
-
-    try:
-        # launch
-        from infra.ec2.backfill.instance import create as launch_backfill
-        ts = pendulum.now().format("YYYY-MM-DD-HH-mm")
-        context.log.info("launching backfill spot instance...")
-        instance_id, public_ip = launch_backfill(name_suffix=ts)
-        context.log.info(f"instance: {instance_id}, ip: {public_ip}")
-
-        # setup
-        context.log.info("waiting for SSM agent...")
-        wait_for_ssm(instance_id, timeout=300)
-        context.log.info("SSM agent online")
-
-        context.log.info("cloning repo...")
-        status, stdout, stderr = ssm_run(instance_id, [
-            f"git clone {REPO_URL} /home/ubuntu/finpipe",
-        ])
-        log_ssm(context, stdout, stderr)
-        if status != "Success":
-            raise RuntimeError(f"git clone failed ({status}): {stderr[:500]}")
-
-        context.log.info("installing uv and dependencies...")
-        status, stdout, stderr = ssm_run(instance_id, [
-            "curl -LsSf https://astral.sh/uv/install.sh | sh",
-            "cd /home/ubuntu/finpipe && /root/.local/bin/uv sync",
-        ], timeout=180)
-        log_ssm(context, stdout, stderr)
-        if status != "Success":
-            raise RuntimeError(f"dependency install failed ({status}): {stderr[:500]}")
-        context.log.info("dependencies installed")
-
-        # stage
-        months_str = " ".join(str(m) for m in config.months)
-        log_file = "/tmp/backfill.log"
-        context.log.info(f"backfill: year={config.year} months={months_str} workers={config.workers}")
-
-        status, stdout, stderr = ssm_run(instance_id, [
-            f"cd /home/ubuntu/finpipe && /root/.local/bin/uv run python dagster/batch/main.py"
-            f" --year {config.year}"
-            f" --months {months_str}"
-            f" --mode concurrent"
-            f" --workers {config.workers}"
-            f" --bucket {S3_BUCKET}"
-            f" > {log_file} 2>&1"
-            f" ; echo BACKFILL_EXIT=$?",
-        ], timeout=3600)
-
-        context.log.info(f"SSM status={status}")
-        if stdout.strip():
-            context.log.info(f"SSM stdout: {stdout.strip()}")
-
-        fetch_remote_log(context, instance_id, log_file)
-
-        if "BACKFILL_EXIT=0" not in stdout:
-            raise RuntimeError("backfill staging failed — see logs above")
-
-        context.log.info("staging complete")
-        return "success"
-
-    finally:
-        if instance_id:
-            context.log.info(f"terminating {instance_id}...")
-            try:
-                terminate_instance(instance_id)
-                context.log.info(f"{instance_id} terminated")
-            except Exception as e:
-                context.log.error(f"failed to terminate {instance_id}: {e}")
+# ---------- graph + job ----------
 
 
-@op
-def commit_to_iceberg(context: OpExecutionContext, emr: EMRServerlessResource, staging_result: str):
-    """Submit EMR job: staged parquet → Iceberg bronze table."""
-    if staging_result != "success":
-        raise RuntimeError("skipping EMR — staging failed")
+@graph
+def backfill_graph():
+    instance_id = launch_spot()
+    setup_done = setup_instance(instance_id=instance_id)
+    staged_instance_id = run_staging(instance_id=instance_id, setup_done=setup_done)
+    teardown_spot(instance_id=staged_instance_id)
+    commit_to_iceberg(instance_id=staged_instance_id)
 
-    script_path = f"s3://{S3_BUCKET}/scripts/staged_to_bronze.py"
-    context.log.info("submitting staged→bronze EMR job")
-    job_run_id = emr.submit_spark_job(
-        script_s3_path=script_path,
-        args=["--cleanup"],
-        name="finpipe-staged-to-bronze",
+
+backfill_job = backfill_graph.to_job(name="backfill_job")
+
+
+# ---------- cleanup sensor ----------
+
+
+@run_status_sensor(
+    run_status=DagsterRunStatus.FAILURE,
+    name="backfill_cleanup_sensor",
+    monitored_jobs=[backfill_job],
+)
+def backfill_cleanup_sensor(context: RunStatusSensorContext):
+    """Terminate any orphaned backfill spot instances on job failure."""
+    ec2 = boto3.client("ec2", region_name=REGION)
+
+    resp = ec2.describe_instances(
+        Filters=[
+            {"Name": "tag:Name", "Values": ["finpipe-backfill*"]},
+            {"Name": "instance-state-name", "Values": ["running", "pending"]},
+        ],
     )
-    state = emr.wait_for_job(job_run_id)
-    context.log.info(f"EMR job complete: {state}")
 
-
-@job
-def backfill_job():
-    result = backfill_pipeline()
-    commit_to_iceberg(staging_result=result)
+    for reservation in resp.get("Reservations", []):
+        for instance in reservation.get("Instances", []):
+            iid = instance["InstanceId"]
+            context.log.info(f"terminating orphaned backfill instance: {iid}")
+            ec2.terminate_instances(InstanceIds=[iid])
