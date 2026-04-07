@@ -15,12 +15,15 @@ Usage:
 
 import sys
 
-from infra.config import ec2, SUBNET_1A, find_sg, get_ubuntu_ami
+from botocore.exceptions import ClientError
+
+from infra.config import SUBNET_1A, SUBNET_1B, ec2, find_sg, get_ubuntu_ami
 
 SG_NAME = "finpipe-backfill-sg"
 PROFILE_NAME = "finpipe-backfill-profile"
 INSTANCE_TYPE = "c5n.4xlarge"
 INSTANCE_NAME = "finpipe-backfill"
+SUBNET_FALLBACK_ORDER = [SUBNET_1A, SUBNET_1B]
 
 
 def create(name_suffix: str | None = None) -> tuple[str, str]:
@@ -39,31 +42,45 @@ def create(name_suffix: str | None = None) -> tuple[str, str]:
     print(f"launching {INSTANCE_TYPE} spot...")
     print(f"  ami: {ami_id}")
 
-    resp = ec2.run_instances(
-        ImageId=ami_id,
-        InstanceType=INSTANCE_TYPE,
-        MinCount=1,
-        MaxCount=1,
-        IamInstanceProfile={"Name": PROFILE_NAME},
-        SecurityGroupIds=[sg_id],
-        SubnetId=SUBNET_1A,
-        TagSpecifications=[{
-            "ResourceType": "instance",
-            "Tags": [
-                {"Key": "Name", "Value": instance_name},
-                {"Key": "project", "Value": "finpipe"},
-            ],
-        }],
-        InstanceMarketOptions={
-            "MarketType": "spot",
-            "SpotOptions": {
-                "SpotInstanceType": "one-time",
-            },
-        },
-        MetadataOptions={
-            "HttpTokens": "required",  # IMDSv2 only
-        },
-    )
+    resp = None
+    last_error: Exception | None = None
+    for subnet_id in SUBNET_FALLBACK_ORDER:
+        try:
+            print(f"  trying subnet: {subnet_id}")
+            resp = ec2.run_instances(
+                ImageId=ami_id,
+                InstanceType=INSTANCE_TYPE,
+                MinCount=1,
+                MaxCount=1,
+                IamInstanceProfile={"Name": PROFILE_NAME},
+                SecurityGroupIds=[sg_id],
+                SubnetId=subnet_id,
+                TagSpecifications=[{
+                    "ResourceType": "instance",
+                    "Tags": [
+                        {"Key": "Name", "Value": instance_name},
+                        {"Key": "project", "Value": "finpipe"},
+                    ],
+                }],
+                InstanceMarketOptions={
+                    "MarketType": "spot",
+                    "SpotOptions": {
+                        "SpotInstanceType": "one-time",
+                    },
+                },
+                MetadataOptions={
+                    "HttpTokens": "required",  # IMDSv2 only
+                },
+            )
+            break
+        except ClientError as exc:
+            last_error = exc
+            if exc.response.get("Error", {}).get("Code") != "InsufficientInstanceCapacity":
+                raise
+            print(f"  insufficient capacity in subnet {subnet_id}, trying next...")
+
+    if resp is None:
+        raise RuntimeError("no spot capacity found in configured us-east-1 subnets") from last_error
     instance = resp["Instances"][0]
     instance_id = instance["InstanceId"]
     print(f"  instance: {instance_id}")
