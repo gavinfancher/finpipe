@@ -19,11 +19,11 @@ jobs:
         id: changes
         run: |
           CHANGED=$(git diff --name-only HEAD~1 HEAD)
-          if echo "$CHANGED" | grep -qE '^(dagster/|common/)'; then
-            echo "dagster=true" >> "$GITHUB_OUTPUT"
-          fi
-          if echo "$CHANGED" | grep -qvE '^(dagster/)'; then
+          if echo "$CHANGED" | grep -qE '^(deploy/|common/|streaming/)'; then
             echo "streaming=true" >> "$GITHUB_OUTPUT"
+          fi
+          if echo "$CHANGED" | grep -qE '(dagster|common)/pyproject.toml'; then
+            echo "dagster_deps=true" >> "$GITHUB_OUTPUT"
           fi
           if echo "$CHANGED" | grep -q 'cloudflared-config.yml'; then
             echo "cloudflared=true" >> "$GITHUB_OUTPUT"
@@ -44,24 +44,32 @@ jobs:
       - name: Deploy
         env:
           SSH_KEY: ${{ secrets.EC2_SSH_KEY }}
+          HOST: ubuntu@${{ steps.ec2.outputs.ip }}
+          STREAMING: ${{ steps.changes.outputs.streaming }}
+          DAGSTER_DEPS: ${{ steps.changes.outputs.dagster_deps }}
+          CLOUDFLARED: ${{ steps.changes.outputs.cloudflared }}
         run: |
           echo "$SSH_KEY" > key.pem
           chmod 600 key.pem
+          SSH="ssh -o StrictHostKeyChecking=no -i key.pem $HOST"
 
-          ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ steps.ec2.outputs.ip }} \
-            "cd /home/ubuntu/finpipe && git pull"
+          $SSH bash -s "$STREAMING" "$DAGSTER_DEPS" "$CLOUDFLARED" <<'REMOTE'
+            set -e
+            STREAMING=$1 DAGSTER_DEPS=$2 CLOUDFLARED=$3
+            cd /home/ubuntu/finpipe
+            git pull
 
-          if [ "${{ steps.changes.outputs.streaming }}" = "true" ]; then
-            ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ steps.ec2.outputs.ip }} \
-              "cd /home/ubuntu/finpipe/deploy/ec2 && sudo docker compose up --build -d"
-          elif [ "${{ steps.changes.outputs.dagster }}" = "true" ]; then
-            ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ steps.ec2.outputs.ip }} \
-              "cd /home/ubuntu/finpipe/deploy/ec2 && sudo docker compose up --build -d dagster-code && sudo docker compose restart dagster-webserver dagster-daemon"
-          fi
+            if [ "$STREAMING" = "true" ]; then
+              cd deploy/ec2 && sudo docker compose up --build -d
+            fi
 
-          if [ "${{ steps.changes.outputs.cloudflared }}" = "true" ]; then
-            ssh -o StrictHostKeyChecking=no -i key.pem ubuntu@${{ steps.ec2.outputs.ip }} \
-              "cd /home/ubuntu/finpipe/deploy/ec2 && sudo docker compose restart cloudflared"
-          fi
+            if [ "$DAGSTER_DEPS" = "true" ]; then
+              cd /home/ubuntu/finpipe/deploy/ec2 && sudo docker compose up --build -d dagster-code && sudo docker compose restart dagster-webserver dagster-daemon
+            fi
+
+            if [ "$CLOUDFLARED" = "true" ]; then
+              cd /home/ubuntu/finpipe/deploy/ec2 && sudo docker compose restart cloudflared
+            fi
+          REMOTE
 
           rm key.pem

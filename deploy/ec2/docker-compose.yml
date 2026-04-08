@@ -134,6 +134,14 @@ services:
     volumes:
       - ./dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
       - ./workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - ../../dagster/definitions.py:/workspace/dagster/definitions.py:ro
+      - ../../dagster/jobs:/workspace/dagster/jobs:ro
+      - ../../dagster/assets:/workspace/dagster/assets:ro
+      - ../../dagster/resources:/workspace/dagster/resources:ro
+      - ../../dagster/sensors:/workspace/dagster/sensors:ro
+      - ../../dagster/transforms:/workspace/dagster/transforms:ro
+      - ../../common:/workspace/common:ro
+      - ../../infra:/workspace/infra:ro
     command: ["uv", "run", "dagster", "code-server", "start", "-h", "0.0.0.0", "-p", "4000", "-f", "definitions.py"]
 
   dagster-webserver:
