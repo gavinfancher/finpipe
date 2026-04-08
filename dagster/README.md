@@ -50,18 +50,20 @@ Temporary double storage during the staged → Iceberg window is negligible. At 
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| Cloud | AWS |
-| Object Storage | S3 |
-| Table Format | Apache Iceberg |
-| Iceberg Catalog | AWS Glue Data Catalog |
-| Ingestion Compute | EC2 Spot (c5n.2xlarge / c5n.4xlarge) |
-| Transform Compute | EMR Serverless (PySpark) |
-| In-memory format | PyArrow (never pandas) |
-| Concurrency | `concurrent.futures.ThreadPoolExecutor` |
-| Query Layer | Trino / Amazon Athena |
-| Data Source | Massive API (formerly Polygon) |
+
+| Layer             | Technology                              |
+| ----------------- | --------------------------------------- |
+| Cloud             | AWS                                     |
+| Object Storage    | S3                                      |
+| Table Format      | Apache Iceberg                          |
+| Iceberg Catalog   | AWS Glue Data Catalog                   |
+| Ingestion Compute | EC2 Spot (c5n.2xlarge / c5n.4xlarge)    |
+| Transform Compute | EMR Serverless (PySpark)                |
+| In-memory format  | PyArrow (never pandas)                  |
+| Concurrency       | `concurrent.futures.ThreadPoolExecutor` |
+| Query Layer       | Trino / Amazon Athena                   |
+| Data Source       | Massive API (formerly Polygon)          |
+
 
 ---
 
@@ -190,11 +192,13 @@ This ingestion pipeline feeds into the larger Finpipe platform:
 
 ### Data Tiering
 
-| Tier | Store | Coverage |
-|---|---|---|
-| Hot | Valkey | Last 30 minutes |
-| Warm | TimescaleDB | Last 5 trading days |
-| Cold | Iceberg on S3/MinIO | Full historical |
+
+| Tier | Store               | Coverage            |
+| ---- | ------------------- | ------------------- |
+| Hot  | Valkey              | Last 30 minutes     |
+| Warm | TimescaleDB         | Last 5 trading days |
+| Cold | Iceberg on S3/MinIO | Full historical     |
+
 
 ---
 
@@ -216,10 +220,11 @@ Key architectural decisions to be able to explain:
 
 ## Open Questions / TODOs
 
-- [ ] Massive API rate limit — confirm exact limits and adjust `max_workers` accordingly
-- [ ] Schema mapping — confirm Massive flat file column names → Finpipe schema
-- [ ] Options vs equities — may need separate Iceberg tables or unified schema with nullable columns
-- [ ] Dagster integration — wire this pipeline into Dagster as a backfill job with `DynamicOutput`
-- [ ] Incremental ingestion — after initial backfill, how to detect and ingest new files (date-based watermark)
-- [ ] File size targets — tune Spark `coalesce` / `repartition` to hit 128–256 MB per Iceberg data file
-- [ ] Glue Catalog setup — create database and table definitions before first write
+- Massive API rate limit — confirm exact limits and adjust `max_workers` accordingly
+- Schema mapping — confirm Massive flat file column names → Finpipe schema
+- Options vs equities — may need separate Iceberg tables or unified schema with nullable columns
+- Dagster integration — wire this pipeline into Dagster as a backfill job with `DynamicOutput`
+- Incremental ingestion — after initial backfill, how to detect and ingest new files (date-based watermark)
+- File size targets — tune Spark `coalesce` / `repartition` to hit 128–256 MB per Iceberg data file
+- Glue Catalog setup — create database and table definitions before first write
+

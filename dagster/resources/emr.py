@@ -1,9 +1,11 @@
 """EMR Serverless resource — submits and monitors Spark jobs."""
 
+import logging
 import time
+from typing import Any
 
 import boto3
-from dagster import ConfigurableResource, get_dagster_logger
+from dagster import ConfigurableResource
 
 
 class EMRServerlessResource(ConfigurableResource):
@@ -35,9 +37,13 @@ class EMRServerlessResource(ConfigurableResource):
         args: list[str] | None = None,
         spark_config: dict[str, str] | None = None,
         name: str = "finpipe-spark-job",
+        log: Any | None = None,
     ) -> str:
-        """Submit a PySpark job. Returns the job run ID."""
-        log = get_dagster_logger()
+        """Submit a PySpark job. Returns the job run ID.
+
+        Pass ``context.log`` from an op or asset so messages appear in the Dagster UI.
+        """
+        _log = log if log is not None else logging.getLogger(__name__)
         client = self._client()
 
         # default Spark properties for Iceberg + Glue
@@ -73,12 +79,17 @@ class EMRServerlessResource(ConfigurableResource):
             tags={"project": "finpipe"},
         )
         job_run_id = resp["jobRunId"]
-        log.info("submitted EMR job: %s (%s)", job_run_id, name)
+        _log.info("submitted EMR job: %s (%s)", job_run_id, name)
         return job_run_id
 
-    def wait_for_job(self, job_run_id: str, poll_interval: int = 15) -> str:
+    def wait_for_job(
+        self,
+        job_run_id: str,
+        poll_interval: int = 15,
+        log: Any | None = None,
+    ) -> str:
         """Poll until job completes. Returns final state."""
-        log = get_dagster_logger()
+        _log = log if log is not None else logging.getLogger(__name__)
         client = self._client()
 
         while True:
@@ -89,11 +100,11 @@ class EMRServerlessResource(ConfigurableResource):
             state = resp["jobRun"]["state"]
 
             if state in ("SUCCESS",):
-                log.info("EMR job %s completed successfully", job_run_id)
+                _log.info("EMR job %s completed successfully", job_run_id)
                 return state
             elif state in ("FAILED", "CANCELLED"):
                 details = resp["jobRun"].get("stateDetails", "no details")
                 raise RuntimeError(f"EMR job {job_run_id} {state}: {details}")
 
-            log.info("EMR job %s: %s", job_run_id, state)
+            _log.info("EMR job %s: %s", job_run_id, state)
             time.sleep(poll_interval)

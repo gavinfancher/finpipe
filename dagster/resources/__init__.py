@@ -6,7 +6,10 @@ import boto3
 from dagster import get_dagster_logger
 
 from .emr import EMRServerlessResource
+from .massive_api import MassiveAPIResource
 from .massive_s3 import MassiveS3Resource
+from .postgres import PostgresResource
+from .redis import RedisResource
 
 
 def _get_secret(name: str, env_fallback: str = "") -> str:
@@ -29,6 +32,13 @@ def get_configured_resources() -> dict:
         "massive_s3": MassiveS3Resource(
             access_key=_get_secret("finpipe/massive-access-key", "MASSIVE_ACCESS_KEY"),
             secret_key=massive_key,
+        ),
+        "massive_api": MassiveAPIResource(api_key=massive_key),
+        "postgres": PostgresResource(
+            database_url=_get_secret("finpipe/database-url", "DATABASE_URL"),
+        ),
+        "redis": RedisResource(
+            url=_get_secret("finpipe/redis-url", "REDIS_URL"),
         ),
         "emr": EMRServerlessResource(
             execution_role_arn=_get_secret("finpipe/emr-role-arn", "EMR_ROLE_ARN"),

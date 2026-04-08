@@ -1,0 +1,29 @@
+name: CI
+
+on:
+  pull_request:
+    paths-ignore:
+      - "**.md"
+      - "frontend/**"
+  push:
+    branches: [main]
+    paths-ignore:
+      - "**.md"
+      - "frontend/**"
+
+jobs:
+  dagster-definitions:
+    name: Dagster definitions
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          version: "latest"
+
+      - name: Sync dagster workspace & validate
+        working-directory: dagster
+        run: |
+          uv sync --frozen
+          uv run dagster definitions validate -f definitions.py

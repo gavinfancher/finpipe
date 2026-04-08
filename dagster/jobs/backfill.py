@@ -5,8 +5,10 @@ Steps (each visible in Dagster UI):
   1. launch_spot       — launch c5n.4xlarge spot instance
   2. setup_instance    — wait for SSM, clone repo, install deps
   3. run_staging       — run batch/main.py → stage parquet to S3
-  4. teardown_spot     — terminate instance
-  5. commit_to_iceberg — EMR Serverless: staged parquet → Iceberg bronze
+  4. teardown_spot     — terminate spot immediately (staging is done; EMR does not need this box)
+  5. commit_to_iceberg — EMR Serverless: staged parquet → Iceberg bronze (runs in parallel with teardown)
+
+Spot is expensive; teardown runs as soon as S3 staging succeeds so you are not billed during the EMR job.
 
 Cleanup: a run status sensor (backfill_cleanup_sensor) monitors for failed runs
 and terminates any orphaned spot instances tagged with project=finpipe.
@@ -197,24 +199,30 @@ def run_staging(context: OpExecutionContext, config: BackfillConfig, instance_id
 
 @op
 def teardown_spot(context: OpExecutionContext, instance_id: str):
-    """Terminate the spot instance."""
+    """Terminate the spot instance as soon as staging finishes (EMR uses S3 only)."""
     ec2 = boto3.client("ec2", region_name=REGION)
     context.log.info(f"terminating {instance_id}...")
     ec2.terminate_instances(InstanceIds=[instance_id])
     context.log.info(f"{instance_id} terminated")
 
 
-@op
-def commit_to_iceberg(context: OpExecutionContext, emr: EMRServerlessResource, instance_id: str):
-    """Submit EMR job: staged parquet → Iceberg bronze table."""
+@op(out=Out(Nothing))
+def commit_to_iceberg(
+    context: OpExecutionContext, emr: EMRServerlessResource, instance_id: str
+):
+    """Submit EMR job: staged parquet → Iceberg bronze table.
+
+    ``instance_id`` is only used to order this op after ``run_staging``; EMR reads S3, not the EC2 host.
+    """
     script_path = f"s3://{S3_BUCKET}/scripts/staged_to_bronze.py"
     context.log.info("submitting staged→bronze EMR job")
     job_run_id = emr.submit_spark_job(
         script_s3_path=script_path,
         args=["--cleanup"],
         name="finpipe-staged-to-bronze",
+        log=context.log,
     )
-    state = emr.wait_for_job(job_run_id)
+    state = emr.wait_for_job(job_run_id, log=context.log)
     context.log.info(f"EMR job complete: {state}")
 
 
@@ -226,6 +234,7 @@ def backfill_graph():
     instance_id = launch_spot()
     setup_done = setup_instance(instance_id=instance_id)
     staged_instance_id = run_staging(instance_id=instance_id, setup_done=setup_done)
+    # Teardown spot as soon as staging succeeds; commit runs on EMR/S3 and does not need this instance.
     teardown_spot(instance_id=staged_instance_id)
     commit_to_iceberg(instance_id=staged_instance_id)
 

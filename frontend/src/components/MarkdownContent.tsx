@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import DOMPurify from "dompurify";
 import Mermaid from "./Mermaid";
 
 interface Props {
@@ -39,7 +40,10 @@ function splitMermaidBlocks(html: string): ContentBlock[] {
 }
 
 export default function MarkdownContent({ html, className = "" }: Props) {
-  const blocks = useMemo(() => splitMermaidBlocks(html), [html]);
+  const blocks = useMemo(() => {
+    const safe = DOMPurify.sanitize(html);
+    return splitMermaidBlocks(safe);
+  }, [html]);
 
   return (
     <div className={className}>

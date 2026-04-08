@@ -25,7 +25,6 @@ COPY dagster/jobs/ jobs/
 COPY dagster/assets/ assets/
 COPY dagster/resources/ resources/
 COPY dagster/sensors/ sensors/
-COPY dagster/transforms/ transforms/
 
 # Install the project itself
 RUN uv sync --frozen --no-dev --no-editable

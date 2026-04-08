@@ -23,7 +23,8 @@ dist/
 # ide
 .idea/
 .vscode/
-.claude
+.claude/
+.cursor/
 
 # uv
 .python-version

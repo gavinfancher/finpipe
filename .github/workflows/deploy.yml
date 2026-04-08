@@ -6,6 +6,16 @@ on:
     paths-ignore:
       - "**.md"
       - "frontend/**"
+  workflow_dispatch:
+    inputs:
+      compose_rebuild:
+        type: boolean
+        description: "Full stack — docker compose up --build -d"
+        default: false
+      restart_dagster:
+        type: boolean
+        description: "Restart dagster-code, dagster-webserver, dagster-daemon"
+        default: true
 
 jobs:
   deploy:
@@ -18,12 +28,24 @@ jobs:
       - name: Detect changes
         id: changes
         run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "streaming=${{ github.event.inputs.compose_rebuild }}" >> "$GITHUB_OUTPUT"
+            echo "dagster_deps=false" >> "$GITHUB_OUTPUT"
+            echo "dagster_reload=${{ github.event.inputs.restart_dagster }}" >> "$GITHUB_OUTPUT"
+            echo "cloudflared=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           CHANGED=$(git diff --name-only HEAD~1 HEAD)
           if echo "$CHANGED" | grep -qE '^(deploy/|common/|streaming/)'; then
             echo "streaming=true" >> "$GITHUB_OUTPUT"
           fi
           if echo "$CHANGED" | grep -qE '(dagster|common)/pyproject.toml'; then
             echo "dagster_deps=true" >> "$GITHUB_OUTPUT"
+          fi
+          # Bind-mounted code: pull updates files but the code server keeps old defs until restart.
+          if echo "$CHANGED" | grep -qE '^(dagster/|infra/)'; then
+            echo "dagster_reload=true" >> "$GITHUB_OUTPUT"
           fi
           if echo "$CHANGED" | grep -q 'cloudflared-config.yml'; then
             echo "cloudflared=true" >> "$GITHUB_OUTPUT"
@@ -47,15 +69,16 @@ jobs:
           HOST: ubuntu@${{ steps.ec2.outputs.ip }}
           STREAMING: ${{ steps.changes.outputs.streaming }}
           DAGSTER_DEPS: ${{ steps.changes.outputs.dagster_deps }}
+          DAGSTER_RELOAD: ${{ steps.changes.outputs.dagster_reload }}
           CLOUDFLARED: ${{ steps.changes.outputs.cloudflared }}
         run: |
           echo "$SSH_KEY" > key.pem
           chmod 600 key.pem
-          SSH="ssh -o StrictHostKeyChecking=no -i key.pem $HOST"
+          SSH="ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 -i key.pem $HOST"
 
-          $SSH bash -s "$STREAMING" "$DAGSTER_DEPS" "$CLOUDFLARED" <<'REMOTE'
+          $SSH bash -s "$STREAMING" "$DAGSTER_DEPS" "$DAGSTER_RELOAD" "$CLOUDFLARED" <<'REMOTE'
             set -e
-            STREAMING=$1 DAGSTER_DEPS=$2 CLOUDFLARED=$3
+            STREAMING=$1 DAGSTER_DEPS=$2 DAGSTER_RELOAD=$3 CLOUDFLARED=$4
             cd /home/ubuntu/finpipe
             git pull
 
@@ -65,6 +88,8 @@ jobs:
 
             if [ "$DAGSTER_DEPS" = "true" ]; then
               cd /home/ubuntu/finpipe/deploy/ec2 && sudo docker compose up --build -d dagster-code && sudo docker compose restart dagster-webserver dagster-daemon
+            elif [ "$DAGSTER_RELOAD" = "true" ]; then
+              cd /home/ubuntu/finpipe/deploy/ec2 && sudo docker compose restart dagster-code dagster-webserver dagster-daemon
             fi
 
             if [ "$CLOUDFLARED" = "true" ]; then

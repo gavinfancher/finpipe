@@ -210,3 +210,26 @@ def fetch_close(client: RESTClient, ticker: str, d: date) -> float | None:
     except Exception as e:
         logger.warning("failed to fetch %s on %s: %s", ticker, d, e)
     return None
+
+
+def derive_close_of_day_perf_fields(
+    price: float,
+    prev_close: float | None,
+    ref_closes: dict[str, float],
+    label_to_ref: dict[str, str],
+) -> dict[str, str]:
+    """Compute change and perf* hash fields from today's close and reference closes.
+
+    ``ref_closes`` keys are period labels (e.g. ``5d``, ``1m``) matching
+    ``label_to_ref`` (e.g. common.redis_keys.LABEL_TO_REF).
+    """
+    out: dict[str, str] = {}
+    if prev_close is not None:
+        change = price - prev_close
+        out["change"] = str(round(change, 4))
+        out["changePct"] = str(round(change / prev_close * 100, 4))
+    for label, ref_close in ref_closes.items():
+        ref_field = label_to_ref[label]
+        perf_field = ref_field.replace("ref", "perf")
+        out[perf_field] = str(round((price - ref_close) / ref_close * 100, 4))
+    return out
