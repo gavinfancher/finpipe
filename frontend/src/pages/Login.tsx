@@ -78,7 +78,7 @@ export default function Login() {
 
           {error && <p className="field-error">{error}</p>}
 
-          <button type="submit" className="btn-primary" disabled={loading}>
+          <button type="submit" className="btn-primary" style={{ width: "100%", marginTop: 4 }} disabled={loading}>
             {loading ? "..." : "sign in"}
           </button>
         </form>

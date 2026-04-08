@@ -29,7 +29,7 @@ export default function Dashboard() {
               <svg className="dash-card__icon-svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z" />
               </svg>
-              <span className="dash-card__name" style={{ color: "var(--accent)" }}>stream</span>
+              <span className="dash-card__name">stream</span>
             </div>
             <p className="dash-card__desc">
               real-time streaming dashboard. watchlists, positions, and live p/l.
@@ -43,7 +43,7 @@ export default function Dashboard() {
           <Link to="/account" className="dash-card">
             <div className="dash-card__top">
               <span className="dash-card__icon">@</span>
-              <span className="dash-card__name" style={{ color: "var(--text-secondary)" }}>account</span>
+              <span className="dash-card__name">account</span>
             </div>
             <p className="dash-card__desc">
               manage your profile and api keys.
