@@ -7,12 +7,13 @@ WORKDIR /workspace
 
 # Copy workspace root + dependency files first for layer caching
 COPY pyproject.toml /workspace/pyproject.toml
+COPY uv.lock /workspace/uv.lock
 COPY common/pyproject.toml /workspace/common/pyproject.toml
 COPY common/common/__init__.py /workspace/common/common/__init__.py
 COPY dagster/pyproject.toml /workspace/dagster/pyproject.toml
 
 WORKDIR /workspace/dagster
-RUN uv sync --no-dev --no-install-project
+RUN uv sync --frozen --no-dev --no-install-project
 
 # Copy shared library and infra scripts
 COPY common/ /workspace/common/
@@ -27,7 +28,7 @@ COPY dagster/sensors/ sensors/
 COPY dagster/transforms/ transforms/
 
 # Install the project itself
-RUN uv sync --no-dev --no-editable
+RUN uv sync --frozen --no-dev --no-editable
 
 ENV PYTHONPATH=/workspace
 ENV DAGSTER_HOME=/opt/dagster/dagster_home
