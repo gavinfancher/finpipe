@@ -27,7 +27,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          fetch-depth: 2
+          # Full history so we can diff the whole push (before..after) and resolve any parent SHA.
+          fetch-depth: 0
 
       - name: Detect changes
         id: changes
@@ -41,7 +42,15 @@ jobs:
             exit 0
           fi
 
-          CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          BEFORE="${{ github.event.before }}"
+          AFTER="${{ github.sha }}"
+          if [ "$BEFORE" = "0000000000000000000000000000000000000000" ] \
+            || ! git rev-parse --verify "$BEFORE^{commit}" >/dev/null 2>&1; then
+            CHANGED=$(git diff --name-only HEAD~1 HEAD)
+          else
+            CHANGED=$(git diff --name-only "$BEFORE" "$AFTER")
+          fi
+
           if echo "$CHANGED" | grep -qE '^(deploy/|common/|streaming/)'; then
             echo "streaming=true" >> "$GITHUB_OUTPUT"
           fi
@@ -55,9 +64,9 @@ jobs:
           if echo "$CHANGED" | grep -q 'cloudflared-config.yml'; then
             echo "cloudflared=true" >> "$GITHUB_OUTPUT"
           fi
-          if echo "$CHANGED" | grep -qE '^dagster/spark/'; then
-            echo "spark_scripts=true" >> "$GITHUB_OUTPUT"
-          fi
+          # Always publish EMR driver scripts on every main push so S3 matches repo tip
+          # (avoids missing uploads when spark/ changed in an earlier commit of the same push).
+          echo "spark_scripts=true" >> "$GITHUB_OUTPUT"
 
       - name: Get EC2 IP
         id: ec2
@@ -92,8 +101,10 @@ jobs:
             git pull
 
             if [ "$SPARK_SCRIPTS" = "true" ]; then
-              aws s3 cp dagster/spark/staged_to_bronze.py s3://finpipe-lakehouse/scripts/staged_to_bronze.py
-              aws s3 cp dagster/spark/bronze_to_silver.py s3://finpipe-lakehouse/scripts/bronze_to_silver.py
+              for f in dagster/spark/*.py; do
+                [ -f "$f" ] || continue
+                aws s3 cp "$f" "s3://finpipe-lakehouse/scripts/$(basename "$f")"
+              done
             fi
 
             if [ "$STREAMING" = "true" ]; then
