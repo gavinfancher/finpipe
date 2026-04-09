@@ -4,7 +4,7 @@ Control node: manages ticker assignments across ingestion nodes.
 - Runs an internal HTTP API for ingest node registration (port 8081)
 - Queries PostgreSQL for all unique tickers (watchlists + positions)
 - Maintains ticker→node assignments in Redis
-- Balances tickers across live ingest nodes (≤100 per node, min 3, always odd)
+- Assigns tickers to ingest nodes (Massive WebSocket: one connection → default cap 1 node; see MAX_INGEST_NODES)
 - Publishes assignment changes via Redis pub/sub
 - Scales ECS Fargate ingest service based on ticker count
 - Detects market hours and scales to 0 outside trading sessions
@@ -18,7 +18,8 @@ import logging
 import math
 import os
 import time
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 import asyncpg
 import pandas_market_calendars as mcal
@@ -39,7 +40,9 @@ DATABASE_URL = os.environ["DATABASE_URL"]
 REDIS_URL = os.environ.get("REDIS_URL", "redis://localhost:6379")
 POLL_INTERVAL = int(os.environ.get("CONTROL_POLL_INTERVAL", "5"))
 MAX_TICKERS_PER_NODE = 100
-MIN_NODES = int(os.environ.get("MIN_NODES", "3"))
+MIN_NODES = int(os.environ.get("MIN_NODES", "1"))
+# Massive (and many vendor feeds) allow a single WebSocket session per key — do not shard across nodes unless you have multiple keys.
+MAX_INGEST_NODES = int(os.environ.get("MAX_INGEST_NODES", "1"))
 CONTROL_PORT = int(os.environ.get("CONTROL_PORT", "8081"))
 HEARTBEAT_TTL = int(os.environ.get("HEARTBEAT_TTL", "30"))  # seconds before node is considered dead
 
@@ -50,6 +53,7 @@ ECS_REGION = os.environ.get("AWS_REGION", "us-east-1")
 
 _ecs_client = None
 _nyse = mcal.get_calendar("NYSE")
+_NY = ZoneInfo("America/New_York")
 
 
 # ---------- node registry ----------
@@ -148,18 +152,22 @@ def _get_ecs_client():
 
 
 def is_market_open() -> bool:
-    """Check if today is a NYSE trading session."""
-    today = date.today()
-    schedule = _nyse.schedule(start_date=today, end_date=today)
+    """True if the current *New York* calendar day is an NYSE session (any session day).
+
+    Uses America/New_York, not the host clock date — Docker/EC2 are usually UTC; with
+    ``date.today()`` Friday evening ET can already be Saturday UTC and assignments get wiped.
+    """
+    today_ny = datetime.now(_NY).date()
+    schedule = _nyse.schedule(start_date=today_ny, end_date=today_ny)
     return len(schedule) > 0
 
 
 def compute_node_count(ticker_count: int) -> int:
-    """Compute number of ingest nodes needed. Min 3, always odd."""
+    """Compute desired ingest worker count, capped by MAX_INGEST_NODES (default 1 for single WS API)."""
     needed = max(MIN_NODES, math.ceil(ticker_count / MAX_TICKERS_PER_NODE))
     if needed % 2 == 0:
         needed += 1
-    return needed
+    return min(needed, MAX_INGEST_NODES)
 
 
 def assign_tickers(tickers: list[str], node_count: int, live_nodes: list[str]) -> dict[str, list[str]]:
