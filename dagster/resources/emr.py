@@ -36,12 +36,17 @@ class EMRServerlessResource(ConfigurableResource):
         script_s3_path: str,
         args: list[str] | None = None,
         spark_config: dict[str, str] | None = None,
+        spark_cli_prefix: str | None = None,
         name: str = "finpipe-spark-job",
         log: Any | None = None,
     ) -> str:
         """Submit a PySpark job. Returns the job run ID.
 
         Pass ``context.log`` from an op or asset so messages appear in the Dagster UI.
+
+        ``spark_cli_prefix``: optional ``spark-submit`` flags placed *before* ``--conf``
+        (e.g. ``--num-executors 2 --executor-memory 14G``). EMR Serverless sometimes
+        applies these more reliably than ``spark.executor.instances`` alone.
         """
         _log = log if log is not None else logging.getLogger(__name__)
         client = self._client()
@@ -69,12 +74,17 @@ class EMRServerlessResource(ConfigurableResource):
         if spark_config:
             default_config.update(spark_config)
 
+        conf_args = " ".join(f"--conf {k}={v}" for k, v in default_config.items())
+        spark_submit_parameters = (
+            f"{spark_cli_prefix.strip()} {conf_args}"
+            if spark_cli_prefix
+            else conf_args
+        )
+
         job_driver = {
             "sparkSubmit": {
                 "entryPoint": script_s3_path,
-                "sparkSubmitParameters": " ".join(
-                    f"--conf {k}={v}" for k, v in default_config.items()
-                ),
+                "sparkSubmitParameters": spark_submit_parameters,
             },
         }
         if args:

@@ -209,11 +209,27 @@ def commit_to_iceberg(
     """
     script_path = f"s3://{S3_BUCKET}/scripts/staged_to_bronze.py"
     context.log.info("submitting staged→bronze EMR job")
+    # Iceberg partitioned create shuffles hard. Prefer many small executors with 1 core each so
+    # each concurrent task owns a full executor heap (vs 2 tasks sharing one big JVM). Fits ~64GB app cap.
+    staged_bronze_cli = (
+        "--num-executors 6 --executor-cores 1 --executor-memory 6G "
+        "--driver-memory 8G --driver-cores 1"
+    )
+    staged_bronze_spark = {
+        "spark.dynamicAllocation.enabled": "false",
+        "spark.executor.memoryOverhead": "1536m",
+        "spark.driver.memoryOverhead": "1g",
+        "spark.sql.adaptive.enabled": "true",
+        "spark.sql.adaptive.coalescePartitions.enabled": "true",
+        "spark.sql.shuffle.partitions": "96",
+    }
     job_run_id = emr.submit_spark_job(
         script_s3_path=script_path,
         args=["--cleanup"],
         name="finpipe-staged-to-bronze",
         log=context.log,
+        spark_config=staged_bronze_spark,
+        spark_cli_prefix=staged_bronze_cli,
     )
 
     ec2 = boto3.client("ec2", region_name=REGION)

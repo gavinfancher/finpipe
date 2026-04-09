@@ -15,11 +15,33 @@ import sys
 
 import boto3
 from pyspark.sql import SparkSession
-
+from pyspark.sql.types import (
+    DoubleType,
+    LongType,
+    StringType,
+    StructField,
+    StructType,
+)
 
 S3_BUCKET = "finpipe-lakehouse"
 STAGED_PATH = f"s3://{S3_BUCKET}/bronze/staged/"
 BRONZE_TABLE = "glue.finpipe_bronze.equities_minute_aggs"
+
+# Align with common.schemas.BRONZE_SCHEMA (PyArrow batch writer).
+BRONZE_PARQUET_SCHEMA = StructType(
+    [
+        StructField("ticker", StringType(), True),
+        StructField("volume", DoubleType(), True),
+        StructField("open", DoubleType(), True),
+        StructField("close", DoubleType(), True),
+        StructField("high", DoubleType(), True),
+        StructField("low", DoubleType(), True),
+        StructField("window_start", LongType(), True),
+        StructField("transactions", LongType(), True),
+        StructField("otc", StringType(), True),
+        StructField("date", StringType(), True),
+    ]
+)
 
 
 def cleanup_staged(bucket: str, prefix: str):
@@ -40,7 +62,13 @@ def main():
 
     spark = SparkSession.builder.appName("finpipe-staged-to-bronze").getOrCreate()
 
-    df = spark.read.parquet(STAGED_PATH)
+    # Nested keys: bronze/staged/{year}/*.parquet — recurse and ignore non-parquet S3 keys.
+    df = (
+        spark.read.option("recursiveFileLookup", "true")
+        .option("pathGlobFilter", "*.parquet")
+        .schema(BRONZE_PARQUET_SCHEMA)
+        .parquet(STAGED_PATH)
+    )
     row_count = df.count()
     print(f"read {row_count:,} rows from {STAGED_PATH}")
 
@@ -49,16 +77,20 @@ def main():
         spark.stop()
         return
 
+    # Shuffle width ~ executor parallelism (see backfill EMR spark.sql.shuffle.partitions).
+    spark.conf.set("spark.sql.shuffle.partitions", "96")
+    df = df.repartition(96, "date", "ticker")
+
+    # Fanout writer: avoid global sort-by-partition shuffle on create (major source of OOM vs raw size).
+    # https://iceberg.apache.org/docs/latest/spark-writes/
+    w = df.writeTo(BRONZE_TABLE).option("fanout-enabled", "true")
+
     # write to iceberg
     if spark.catalog.tableExists(BRONZE_TABLE):
-        df.writeTo(BRONZE_TABLE).append()
+        w.append()
         print(f"appended to {BRONZE_TABLE}")
     else:
-        (
-            df.writeTo(BRONZE_TABLE)
-            .partitionedBy("date", "ticker")
-            .create()
-        )
+        w.partitionedBy("date", "ticker").create()
         print(f"created {BRONZE_TABLE}")
 
     print(f"wrote {row_count:,} rows to {BRONZE_TABLE}")
