@@ -113,6 +113,8 @@ services:
       timeout: 5s
       retries: 5
 
+  # fs_io_manager + LocalComputeLogManager write under DAGSTER_HOME; without a volume,
+  # re-execution cannot load prior op outputs after recreate/redeploy.
   dagster-code:
     build:
       context: ../..
@@ -134,6 +136,8 @@ services:
     volumes:
       - ./dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
       - ./workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - dagster_home_storage:/opt/dagster/dagster_home/storage
+      - dagster_home_compute_logs:/opt/dagster/dagster_home/compute_logs
       - ../../dagster/definitions.py:/workspace/dagster/definitions.py:ro
       - ../../dagster/jobs:/workspace/dagster/jobs:ro
       - ../../dagster/assets:/workspace/dagster/assets:ro
@@ -160,6 +164,8 @@ services:
     volumes:
       - ./dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
       - ./workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - dagster_home_storage:/opt/dagster/dagster_home/storage
+      - dagster_home_compute_logs:/opt/dagster/dagster_home/compute_logs
     ports: ["3000:3000"]
     command: ["uv", "run", "dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "/opt/dagster/dagster_home/workspace.yaml"]
 
@@ -180,8 +186,12 @@ services:
     volumes:
       - ./dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
       - ./workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - dagster_home_storage:/opt/dagster/dagster_home/storage
+      - dagster_home_compute_logs:/opt/dagster/dagster_home/compute_logs
     command: ["uv", "run", "dagster-daemon", "run", "-w", "/opt/dagster/dagster_home/workspace.yaml"]
 
 volumes:
   redpanda_data:
   dagster_pg_data:
+  dagster_home_storage:
+  dagster_home_compute_logs:
