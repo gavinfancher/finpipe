@@ -29,7 +29,7 @@ S3_BUCKET = "finpipe-lakehouse"
 STAGED_PREFIX = "bronze/staged/"
 STAGED_PATH = f"s3://{S3_BUCKET}/{STAGED_PREFIX}"
 BRONZE_TABLE = "glue.finpipe_bronze.equities_minute_aggs"
-BATCH_SIZE = 10
+BATCH_SIZE = 3
 
 BRONZE_PARQUET_SCHEMA = StructType(
     [
@@ -96,16 +96,13 @@ def main():
         return
 
     table_exists = spark.catalog.tableExists(BRONZE_TABLE)
-    total_rows = 0
 
     for i in range(0, len(files), BATCH_SIZE):
         batch_files = files[i : i + BATCH_SIZE]
         batch_num = i // BATCH_SIZE + 1
-        print(f"batch {batch_num}: {len(batch_files)} files")
+        print(f"batch {batch_num}: {len(batch_files)} files — {batch_files[0].split('/')[-1]}..{batch_files[-1].split('/')[-1]}")
 
         df = read_batch(spark, batch_files)
-        batch_rows = df.count()
-        print(f"  {batch_rows:,} rows")
 
         if not table_exists:
             (
@@ -119,11 +116,9 @@ def main():
             print(f"  created {BRONZE_TABLE}")
         else:
             df.writeTo(BRONZE_TABLE).append()
-            print(f"  appended to {BRONZE_TABLE}")
+            print(f"  appended")
 
-        total_rows += batch_rows
-
-    print(f"done — {total_rows:,} rows across {len(files)} files")
+    print(f"done — {len(files)} files written in {(len(files) + BATCH_SIZE - 1) // BATCH_SIZE} batches")
 
     if do_cleanup:
         cleanup_staged(S3_BUCKET, STAGED_PREFIX)
