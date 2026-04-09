@@ -21,11 +21,14 @@ EC2 ``deploy/ec2/docker-compose.yml`` mounts named volumes on ``storage`` and
 ``compute_logs``; if those are still missing, use ``commit_staged_to_bronze_job``.
 
 Usage:
-    Trigger from Dagster UI with config:
-      year: 2025
-      months: [1, 2, 3]
-      workers: 16
-      staged_bronze_batch_size: 50   # optional; staged parquet files per EMR append (~days)
+    Job config is a single block (no per-op duplication) — see ``backfill_job_config`` below.
+
+    Launchpad YAML::
+
+        year: 2024
+        months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        workers: 16
+        staged_bronze_batch_size: 50
 """
 
 import time
@@ -35,6 +38,7 @@ import pendulum
 from botocore.exceptions import ClientError
 from dagster import (
     Config,
+    ConfigMapping,
     DagsterRunStatus,
     In,
     Nothing,
@@ -68,6 +72,23 @@ class CommitStagedToBronzeConfig(Config):
     """If set, terminate this instance after submitting EMR. Omit if spot is already gone."""
     staged_bronze_batch_size: int = 50
     """Same as ``BackfillConfig.staged_bronze_batch_size``."""
+
+
+def _backfill_job_config_mapping(config: dict) -> dict:
+    """Fan a single backfill config into both ops that need ``BackfillConfig``."""
+    shared = dict(config)
+    return {
+        "ops": {
+            "run_staging": {"config": shared},
+            "commit_to_iceberg": {"config": shared},
+        },
+    }
+
+
+backfill_job_config = ConfigMapping(
+    config_fn=_backfill_job_config_mapping,
+    config_schema=BackfillConfig.to_config_schema(),
+)
 
 
 # ---------- helpers ----------
@@ -330,7 +351,10 @@ def backfill_graph():
     commit_to_iceberg(instance_id=staged_instance_id)
 
 
-backfill_job = backfill_graph.to_job(name="backfill_job")
+backfill_job = backfill_graph.to_job(
+    name="backfill_job",
+    config=backfill_job_config,
+)
 
 
 @graph
