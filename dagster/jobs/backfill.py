@@ -217,14 +217,19 @@ def _submit_staged_to_bronze_emr(
     context.log.info("submitting staged→bronze EMR job")
     # Iceberg partitioned create shuffles hard. Prefer many small executors with 1 core each so
     # each concurrent task owns a full executor heap (vs 2 tasks sharing one big JVM). Fits ~64GB app cap.
+    #
+    # EMR Serverless: for 1 vCPU driver, total driver memory (heap + EMR overhead rules) must be ≤ 8 GB.
+    # Do not set spark.driver.memoryOverhead here — it stacks with spark.emr-serverless.memoryOverheadFactor
+    # and triggers ValidationException above 8g.
     staged_bronze_cli = (
         "--num-executors 6 --executor-cores 1 --executor-memory 6G "
-        "--driver-memory 8G --driver-cores 1"
+        "--driver-memory 6G --driver-cores 1"
     )
     staged_bronze_spark = {
         "spark.dynamicAllocation.enabled": "false",
+        "spark.driver.memory": "6g",
+        "spark.driver.cores": "1",
         "spark.executor.memoryOverhead": "1536m",
-        "spark.driver.memoryOverhead": "1g",
         "spark.sql.adaptive.enabled": "true",
         "spark.sql.adaptive.coalescePartitions.enabled": "true",
         "spark.sql.shuffle.partitions": "96",
