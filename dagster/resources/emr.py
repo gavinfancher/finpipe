@@ -47,7 +47,10 @@ class EMRServerlessResource(ConfigurableResource):
         client = self._client()
 
         # default Spark properties for Iceberg + Glue
-        # EMR 7.1 ships Iceberg natively — use the bundled JAR, no Maven downloads
+        # EMR 7.x ships Iceberg natively — use the bundled JAR, no Maven downloads
+        # EMR Serverless app maximumCapacity (e.g. 8 vCPU / 32 GB) includes driver + executors;
+        # disable dynamic allocation and cap executors so small apps do not hit
+        # ApplicationMaxCapacityExceededException.
         default_config = {
             "spark.jars": "/usr/share/aws/iceberg/lib/iceberg-spark3-runtime.jar",
             "spark.sql.catalog.glue": "org.apache.iceberg.spark.SparkCatalog",
@@ -56,6 +59,12 @@ class EMRServerlessResource(ConfigurableResource):
             "spark.sql.catalog.glue.io-impl": "org.apache.iceberg.aws.s3.S3FileIO",
             "spark.sql.extensions": "org.apache.iceberg.spark.extensions.IcebergSparkSessionExtensions",
             "spark.sql.defaultCatalog": "glue",
+            "spark.dynamicAllocation.enabled": "false",
+            "spark.executor.instances": "1",
+            "spark.executor.cores": "2",
+            "spark.executor.memory": "6g",
+            "spark.driver.cores": "1",
+            "spark.driver.memory": "4g",
         }
         if spark_config:
             default_config.update(spark_config)

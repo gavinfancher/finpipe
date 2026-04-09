@@ -16,6 +16,10 @@ on:
         type: boolean
         description: "Restart dagster-code, dagster-webserver, dagster-daemon"
         default: true
+      sync_spark_scripts:
+        type: boolean
+        description: "Upload dagster/spark/*.py to s3://finpipe-lakehouse/scripts/ (EMR drivers)"
+        default: false
 
 jobs:
   deploy:
@@ -33,6 +37,7 @@ jobs:
             echo "dagster_deps=false" >> "$GITHUB_OUTPUT"
             echo "dagster_reload=${{ github.event.inputs.restart_dagster }}" >> "$GITHUB_OUTPUT"
             echo "cloudflared=false" >> "$GITHUB_OUTPUT"
+            echo "spark_scripts=${{ github.event.inputs.sync_spark_scripts }}" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
@@ -49,6 +54,9 @@ jobs:
           fi
           if echo "$CHANGED" | grep -q 'cloudflared-config.yml'; then
             echo "cloudflared=true" >> "$GITHUB_OUTPUT"
+          fi
+          if echo "$CHANGED" | grep -qE '^dagster/spark/'; then
+            echo "spark_scripts=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Get EC2 IP
@@ -71,16 +79,22 @@ jobs:
           DAGSTER_DEPS: ${{ steps.changes.outputs.dagster_deps }}
           DAGSTER_RELOAD: ${{ steps.changes.outputs.dagster_reload }}
           CLOUDFLARED: ${{ steps.changes.outputs.cloudflared }}
+          SPARK_SCRIPTS: ${{ steps.changes.outputs.spark_scripts }}
         run: |
           echo "$SSH_KEY" > key.pem
           chmod 600 key.pem
           SSH="ssh -o StrictHostKeyChecking=accept-new -o ConnectTimeout=30 -i key.pem $HOST"
 
-          $SSH bash -s "$STREAMING" "$DAGSTER_DEPS" "$DAGSTER_RELOAD" "$CLOUDFLARED" <<'REMOTE'
+          $SSH bash -s "$STREAMING" "$DAGSTER_DEPS" "$DAGSTER_RELOAD" "$CLOUDFLARED" "$SPARK_SCRIPTS" <<'REMOTE'
             set -e
-            STREAMING=$1 DAGSTER_DEPS=$2 DAGSTER_RELOAD=$3 CLOUDFLARED=$4
+            STREAMING=$1 DAGSTER_DEPS=$2 DAGSTER_RELOAD=$3 CLOUDFLARED=$4 SPARK_SCRIPTS=$5
             cd /home/ubuntu/finpipe
             git pull
+
+            if [ "$SPARK_SCRIPTS" = "true" ]; then
+              aws s3 cp dagster/spark/staged_to_bronze.py s3://finpipe-lakehouse/scripts/staged_to_bronze.py
+              aws s3 cp dagster/spark/bronze_to_silver.py s3://finpipe-lakehouse/scripts/bronze_to_silver.py
+            fi
 
             if [ "$STREAMING" = "true" ]; then
               cd deploy/ec2 && sudo docker compose up --build -d

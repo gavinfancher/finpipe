@@ -126,11 +126,19 @@ def stream_and_parse_with_retry(file_key, massive_client):
             log.warning(f'retry {attempt + 1}/{MAX_RETRIES} for {file_key}: {e}')
 
 
+def staging_s3_key(prefix: str, year: int, date_str: str) -> str:
+    """S3 key under the lakehouse bucket — must match Spark ``staged_to_bronze`` (no leading slash)."""
+    p = prefix.strip().strip("/") if prefix else ""
+    if p:
+        return f"{p}/bronze/staged/{year}/{date_str}.parquet"
+    return f"bronze/staged/{year}/{date_str}.parquet"
+
+
 def upload_parquet(table, s3_client, bucket, prefix, year, date_str):
     '''Write Arrow table to S3 as parquet.'''
     buf = io.BytesIO()
     pq.write_table(table, buf)
-    s3_key = f'{prefix}/bronze/staged/{year}/{date_str}.parquet'
+    s3_key = staging_s3_key(prefix, year, date_str)
     s3_client.put_object(Bucket=bucket, Key=s3_key, Body=buf.getvalue())
     return s3_key
 
@@ -256,7 +264,11 @@ def main():
             print(key)
         return
 
-    log.info(f'mode={args.mode} workers={args.workers if args.mode == "concurrent" else 1} → s3://{args.bucket}/{args.prefix}/bronze/staged/{args.year}/')
+    sample_key = staging_s3_key(args.prefix, args.year, "YYYY-MM-DD")
+    log.info(
+        f'mode={args.mode} workers={args.workers if args.mode == "concurrent" else 1} '
+        f'→ s3://{args.bucket}/{sample_key.replace("YYYY-MM-DD", "*")}'
+    )
 
     t0 = time.monotonic()
 
