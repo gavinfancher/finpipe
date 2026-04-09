@@ -16,6 +16,7 @@ const DEFAULT_WL_COLS: WLCol[] = [
   { key: "price",     label: "price",   visible: true, sortable: false },
   { key: "change",    label: "change",  visible: true, sortable: false },
   { key: "changePct", label: "chg %",   visible: true, sortable: true  },
+  { key: "prevClose", label: "prev close", visible: false, sortable: true },
   { key: "perf5d",    label: "5d %",    visible: true, sortable: true  },
   { key: "perf1m",    label: "1m %",    visible: true, sortable: true  },
   { key: "perf3m",    label: "3m %",    visible: true, sortable: true  },

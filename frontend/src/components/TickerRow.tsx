@@ -2,7 +2,19 @@ import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import type { StockTick } from "../types";
 
-export type WLColKey = "price" | "change" | "changePct" | "perf5d" | "perf1m" | "perf3m" | "perf6m" | "perfYtd" | "perf1y" | "perf3y" | "volume";
+export type WLColKey =
+  | "price"
+  | "change"
+  | "changePct"
+  | "prevClose"
+  | "perf5d"
+  | "perf1m"
+  | "perf3m"
+  | "perf6m"
+  | "perfYtd"
+  | "perf1y"
+  | "perf3y"
+  | "volume";
 
 function formatVol(v: number): string {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(2)}M`;
@@ -69,6 +81,11 @@ export default function TickerRow({ ticker, tick, prevPrice, visibleCols, onRemo
       case "changePct": {
         const c = up ? green : red;
         return <span style={{ color: c }}>{`${fmtPct(tick.changePct)}%`}</span>;
+      }
+      case "prevClose": {
+        const p = tick.prevClose;
+        if (p == null) return <span style={{ color: muted }}>—</span>;
+        return <span style={{ color: muted }} title="prior session close used for daily change">${p.toFixed(2)}</span>;
       }
       case "volume":
         return tick.volume != null ? <>{formatVol(tick.volume)}</> : <span style={{ color: muted }}>—</span>;

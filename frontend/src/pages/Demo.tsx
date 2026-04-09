@@ -16,16 +16,16 @@ const DEMO_TICKERS = new Set([
 /* ── static fallback data (used when WS has no data) ── */
 
 const STATIC_TICKS: Record<string, StockTick> = {
-  AAPL:  { ticker: "AAPL",  price: 224.37, open: 222.80, change: 1.57,  changePct: 0.70,  perf5d: 2.86,  perf1m: -3.32, perf3m: -8.14, perf6m: 5.21,  perfYtd: -4.59, perf1y: 14.31, perf3y: 28.42, timestamp: 0, volume: 48_320_000 },
-  MSFT:  { ticker: "MSFT",  price: 418.92, open: 416.10, change: 2.82,  changePct: 0.68,  perf5d: 1.94,  perf1m: -2.18, perf3m: -5.62, perf6m: 1.83,  perfYtd: -3.41, perf1y: 8.57,  perf3y: 42.16, timestamp: 0, volume: 22_150_000 },
-  GOOGL: { ticker: "GOOGL", price: 161.24, open: 159.90, change: 1.34,  changePct: 0.84,  perf5d: 3.12,  perf1m: -1.45, perf3m: -3.89, perf6m: 8.72,  perfYtd: -2.10, perf1y: 19.65, perf3y: 55.33, timestamp: 0, volume: 31_400_000 },
-  AMZN:  { ticker: "AMZN",  price: 186.53, open: 185.20, change: 1.33,  changePct: 0.72,  perf5d: 2.41,  perf1m: -4.15, perf3m: -7.22, perf6m: 3.18,  perfYtd: -5.73, perf1y: 12.84, perf3y: 38.91, timestamp: 0, volume: 54_800_000 },
-  NVDA:  { ticker: "NVDA",  price: 114.22, open: 112.50, change: 1.72,  changePct: 1.53,  perf5d: 5.64,  perf1m: -8.91, perf3m: -15.30, perf6m: -12.44, perfYtd: -14.82, perf1y: 42.17, perf3y: 412.50, timestamp: 0, volume: 312_000_000 },
-  TSLA:  { ticker: "TSLA",  price: 272.18, open: 268.40, change: 3.78,  changePct: 1.41,  perf5d: 4.22,  perf1m: -12.56, perf3m: -18.44, perf6m: -22.17, perfYtd: -31.60, perf1y: -3.28, perf3y: -8.14, timestamp: 0, volume: 98_600_000 },
-  META:  { ticker: "META",  price: 562.41, open: 558.70, change: 3.71,  changePct: 0.66,  perf5d: 1.88,  perf1m: -5.72, perf3m: -9.31, perf6m: -1.22, perfYtd: -6.15, perf1y: 21.43, perf3y: 185.20, timestamp: 0, volume: 18_900_000 },
-  JPM:   { ticker: "JPM",   price: 243.15, open: 241.80, change: 1.35,  changePct: 0.56,  perf5d: 0.92,  perf1m: 2.14,  perf3m: 5.87,  perf6m: 12.63, perfYtd: 8.41,  perf1y: 32.50, perf3y: 68.74, timestamp: 0, volume: 9_200_000 },
-  V:     { ticker: "V",     price: 332.08, open: 330.50, change: 1.58,  changePct: 0.48,  perf5d: 1.15,  perf1m: 0.82,  perf3m: 3.44,  perf6m: 7.92,  perfYtd: 5.18,  perf1y: 18.66, perf3y: 44.33, timestamp: 0, volume: 6_800_000 },
-  UNH:   { ticker: "UNH",   price: 498.62, open: 501.30, change: -2.68, changePct: -0.53, perf5d: -1.84, perf1m: -8.42, perf3m: -14.18, perf6m: -18.30, perfYtd: -13.52, perf1y: -7.91, perf3y: 2.15, timestamp: 0, volume: 4_100_000 },
+  AAPL:  { ticker: "AAPL",  price: 224.37, open: 222.80, change: 1.57,  changePct: 0.70,  prevClose: 222.80, perf5d: 2.86,  perf1m: -3.32, perf3m: -8.14, perf6m: 5.21,  perfYtd: -4.59, perf1y: 14.31, perf3y: 28.42, timestamp: 0, volume: 48_320_000 },
+  MSFT:  { ticker: "MSFT",  price: 418.92, open: 416.10, change: 2.82,  changePct: 0.68,  prevClose: 416.10, perf5d: 1.94,  perf1m: -2.18, perf3m: -5.62, perf6m: 1.83,  perfYtd: -3.41, perf1y: 8.57,  perf3y: 42.16, timestamp: 0, volume: 22_150_000 },
+  GOOGL: { ticker: "GOOGL", price: 161.24, open: 159.90, change: 1.34,  changePct: 0.84,  prevClose: 159.90, perf5d: 3.12,  perf1m: -1.45, perf3m: -3.89, perf6m: 8.72,  perfYtd: -2.10, perf1y: 19.65, perf3y: 55.33, timestamp: 0, volume: 31_400_000 },
+  AMZN:  { ticker: "AMZN",  price: 186.53, open: 185.20, change: 1.33,  changePct: 0.72,  prevClose: 185.20, perf5d: 2.41,  perf1m: -4.15, perf3m: -7.22, perf6m: 3.18,  perfYtd: -5.73, perf1y: 12.84, perf3y: 38.91, timestamp: 0, volume: 54_800_000 },
+  NVDA:  { ticker: "NVDA",  price: 114.22, open: 112.50, change: 1.72,  changePct: 1.53,  prevClose: 112.50, perf5d: 5.64,  perf1m: -8.91, perf3m: -15.30, perf6m: -12.44, perfYtd: -14.82, perf1y: 42.17, perf3y: 412.50, timestamp: 0, volume: 312_000_000 },
+  TSLA:  { ticker: "TSLA",  price: 272.18, open: 268.40, change: 3.78,  changePct: 1.41,  prevClose: 268.40, perf5d: 4.22,  perf1m: -12.56, perf3m: -18.44, perf6m: -22.17, perfYtd: -31.60, perf1y: -3.28, perf3y: -8.14, timestamp: 0, volume: 98_600_000 },
+  META:  { ticker: "META",  price: 562.41, open: 558.70, change: 3.71,  changePct: 0.66,  prevClose: 558.70, perf5d: 1.88,  perf1m: -5.72, perf3m: -9.31, perf6m: -1.22, perfYtd: -6.15, perf1y: 21.43, perf3y: 185.20, timestamp: 0, volume: 18_900_000 },
+  JPM:   { ticker: "JPM",   price: 243.15, open: 241.80, change: 1.35,  changePct: 0.56,  prevClose: 241.80, perf5d: 0.92,  perf1m: 2.14,  perf3m: 5.87,  perf6m: 12.63, perfYtd: 8.41,  perf1y: 32.50, perf3y: 68.74, timestamp: 0, volume: 9_200_000 },
+  V:     { ticker: "V",     price: 332.08, open: 330.50, change: 1.58,  changePct: 0.48,  prevClose: 330.50, perf5d: 1.15,  perf1m: 0.82,  perf3m: 3.44,  perf6m: 7.92,  perfYtd: 5.18,  perf1y: 18.66, perf3y: 44.33, timestamp: 0, volume: 6_800_000 },
+  UNH:   { ticker: "UNH",   price: 498.62, open: 501.30, change: -2.68, changePct: -0.53, prevClose: 501.30, perf5d: -1.84, perf1m: -8.42, perf3m: -14.18, perf6m: -18.30, perfYtd: -13.52, perf1y: -7.91, perf3y: 2.15, timestamp: 0, volume: 4_100_000 },
 };
 
 /* ── localStorage helpers ── */
@@ -49,6 +49,7 @@ const DEFAULT_WL_COLS: WLCol[] = [
   { key: "price",     label: "price",   visible: true, sortable: false },
   { key: "change",    label: "change",  visible: true, sortable: false },
   { key: "changePct", label: "chg %",   visible: true, sortable: true  },
+  { key: "prevClose", label: "prev close", visible: false, sortable: true },
   { key: "perf5d",    label: "5d %",    visible: true, sortable: true  },
   { key: "perf1m",    label: "1m %",    visible: true, sortable: true  },
   { key: "perf3m",    label: "3m %",    visible: true, sortable: true  },

@@ -101,6 +101,10 @@ async def get_cached_tick(ticker: str) -> dict | None:
         "timestamp": int(float(data.get("timestamp", 0))),
     }
 
+    prev_str = data.get("prevClose")
+    if prev_str is not None:
+        tick["prevClose"] = float(prev_str)
+
     # Perf fields are already computed — just read them
     for perf_field in PERF_FIELDS:
         val = data.get(perf_field)
@@ -211,6 +215,8 @@ async def fetch_and_cache_ticker(ticker: str) -> dict | None:
             "volume": volume,
             "timestamp": timestamp,
         }
+        if "prevClose" in mapping:
+            tick["prevClose"] = float(mapping["prevClose"])
         for perf_field in PERF_FIELDS:
             if perf_field in mapping:
                 tick[perf_field] = float(mapping[perf_field])
