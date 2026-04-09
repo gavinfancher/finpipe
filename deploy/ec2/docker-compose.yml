@@ -130,6 +130,9 @@ services:
       DATABASE_URL: ${DATABASE_URL}
       REDIS_URL: ${REDIS_URL}
       MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      EMR_ROLE_ARN: ${EMR_ROLE_ARN:-}
+      EMR_APPLICATION_ID: ${EMR_APPLICATION_ID:-}
+      EMR_APP_NAME: ${EMR_APP_NAME:-}
     depends_on:
       dagster-postgres:
         condition: service_healthy
@@ -161,6 +164,9 @@ services:
       DAGSTER_PG_PASSWORD: dagster
       DAGSTER_PG_HOST: dagster-postgres
       DAGSTER_PG_DB: dagster
+      EMR_ROLE_ARN: ${EMR_ROLE_ARN:-}
+      EMR_APPLICATION_ID: ${EMR_APPLICATION_ID:-}
+      EMR_APP_NAME: ${EMR_APP_NAME:-}
     volumes:
       - ./dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
       - ./workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
@@ -183,6 +189,9 @@ services:
       DAGSTER_PG_PASSWORD: dagster
       DAGSTER_PG_HOST: dagster-postgres
       DAGSTER_PG_DB: dagster
+      EMR_ROLE_ARN: ${EMR_ROLE_ARN:-}
+      EMR_APPLICATION_ID: ${EMR_APPLICATION_ID:-}
+      EMR_APP_NAME: ${EMR_APP_NAME:-}
     volumes:
       - ./dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
       - ./workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro

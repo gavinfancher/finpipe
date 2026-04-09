@@ -211,8 +211,8 @@ def run_staging(context: OpExecutionContext, config: BackfillConfig, instance_id
 
 def _submit_staged_to_bronze_emr(
     context: OpExecutionContext, emr: EMRServerlessResource
-) -> str:
-    """Submit staged→bronze PySpark on EMR; return job run id."""
+) -> tuple[str, str]:
+    """Submit staged→bronze PySpark on EMR; return ``(job_run_id, application_id)``."""
     script_path = f"s3://{S3_BUCKET}/scripts/staged_to_bronze.py"
     context.log.info("submitting staged→bronze EMR job")
     # Iceberg partitioned create shuffles hard. Prefer many small executors with 1 core each so
@@ -234,7 +234,7 @@ def _submit_staged_to_bronze_emr(
         "spark.sql.adaptive.coalescePartitions.enabled": "true",
         "spark.sql.shuffle.partitions": "96",
     }
-    return emr.submit_spark_job(
+    job_run_id, emr_app_id = emr.submit_spark_job(
         script_s3_path=script_path,
         args=["--cleanup"],
         name="finpipe-staged-to-bronze",
@@ -242,6 +242,7 @@ def _submit_staged_to_bronze_emr(
         spark_config=staged_bronze_spark,
         spark_cli_prefix=staged_bronze_cli,
     )
+    return job_run_id, emr_app_id
 
 
 def _terminate_spot_after_emr_submit(
@@ -270,9 +271,11 @@ def commit_to_iceberg(
     so spot billing stops during the EMR run. Keeping submit/teardown/wait in one op
     avoids parallel teardown failing the Dagster run while EMR is still executing.
     """
-    job_run_id = _submit_staged_to_bronze_emr(context, emr)
+    job_run_id, emr_app_id = _submit_staged_to_bronze_emr(context, emr)
     _terminate_spot_after_emr_submit(context, instance_id)
-    state = emr.wait_for_job(job_run_id, log=context.log)
+    state = emr.wait_for_job(
+        job_run_id, log=context.log, application_id=emr_app_id
+    )
     context.log.info(f"EMR job complete: {state}")
 
 
@@ -288,9 +291,11 @@ def commit_staged_to_bronze_only(
     ``run_staging`` output is missing from ``DAGSTER_HOME/storage`` (new host, wiped
     volume, or compose without persistent volumes — see ``deploy/ec2/docker-compose.yml``).
     """
-    job_run_id = _submit_staged_to_bronze_emr(context, emr)
+    job_run_id, emr_app_id = _submit_staged_to_bronze_emr(context, emr)
     _terminate_spot_after_emr_submit(context, config.spot_instance_id)
-    state = emr.wait_for_job(job_run_id, log=context.log)
+    state = emr.wait_for_job(
+        job_run_id, log=context.log, application_id=emr_app_id
+    )
     context.log.info(f"EMR job complete: {state}")
 
 

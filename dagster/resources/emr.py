@@ -8,6 +8,12 @@ import boto3
 from dagster import ConfigurableResource
 
 
+# Application states where the app still exists and can accept job runs (not torn down).
+_EMR_APP_USABLE_STATES = frozenset(
+    {"CREATED", "STARTING", "STARTED", "STOPPED", "STOPPING", "UPDATING"}
+)
+
+
 class EMRServerlessResource(ConfigurableResource):
     """Submit PySpark jobs to EMR Serverless and wait for completion."""
 
@@ -20,16 +26,36 @@ class EMRServerlessResource(ConfigurableResource):
     def _client(self):
         return boto3.client("emr-serverless", region_name=self.region)
 
-    def _resolve_application_id(self) -> str:
-        """Return application_id if set, otherwise look up by app_name."""
-        if self.application_id:
-            return self.application_id
+    def _list_all_applications(self) -> list[dict]:
+        """Paginate — list_applications is not a single page."""
         client = self._client()
-        resp = client.list_applications()
-        for app in resp.get("applications", []):
-            if app["name"] == self.app_name and app["state"] in ("CREATED", "STARTED", "STOPPED"):
+        paginator = client.get_paginator("list_applications")
+        out: list[dict] = []
+        for page in paginator.paginate():
+            out.extend(page.get("applications", []))
+        return out
+
+    def _resolve_application_id(self) -> str:
+        """Return configured id, otherwise look up by app_name in this region."""
+        configured = str(self.application_id).strip() if self.application_id else ""
+        if configured:
+            return configured
+
+        apps = self._list_all_applications()
+        for app in apps:
+            if app["name"] == self.app_name and app.get("state") in _EMR_APP_USABLE_STATES:
                 return app["id"]
-        raise RuntimeError(f"no EMR Serverless application named '{self.app_name}' found — run infra/emr/application.py to create it")
+
+        names = sorted({a.get("name", "?") for a in apps})
+        preview = names[:25]
+        suffix = " …" if len(names) > 25 else ""
+        raise RuntimeError(
+            f"no EMR Serverless application named {self.app_name!r} in region {self.region!r}. "
+            "Create one: uv run python infra/emr/application.py "
+            f"(from repo root), or set EMR_APPLICATION_ID / secret finpipe/emr-application-id "
+            f"to the application UUID, or EMR_APP_NAME if the app uses a different name. "
+            f"Applications visible in this account/region: {preview}{suffix}"
+        )
 
     def submit_spark_job(
         self,
@@ -39,8 +65,8 @@ class EMRServerlessResource(ConfigurableResource):
         spark_cli_prefix: str | None = None,
         name: str = "finpipe-spark-job",
         log: Any | None = None,
-    ) -> str:
-        """Submit a PySpark job. Returns the job run ID.
+    ) -> tuple[str, str]:
+        """Submit a PySpark job. Returns ``(job_run_id, application_id)``.
 
         Pass ``context.log`` from an op or asset so messages appear in the Dagster UI.
 
@@ -90,30 +116,41 @@ class EMRServerlessResource(ConfigurableResource):
         if args:
             job_driver["sparkSubmit"]["entryPointArguments"] = args
 
+        application_id = self._resolve_application_id()
         resp = client.start_job_run(
-            applicationId=self._resolve_application_id(),
+            applicationId=application_id,
             executionRoleArn=self.execution_role_arn,
             jobDriver=job_driver,
             name=name,
             tags={"project": "finpipe"},
         )
         job_run_id = resp["jobRunId"]
-        _log.info("submitted EMR job: %s (%s)", job_run_id, name)
-        return job_run_id
+        _log.info("submitted EMR job: %s (%s) app=%s", job_run_id, name, application_id)
+        return job_run_id, application_id
 
     def wait_for_job(
         self,
         job_run_id: str,
         poll_interval: int = 15,
         log: Any | None = None,
+        application_id: str | None = None,
     ) -> str:
-        """Poll until job completes. Returns final state."""
+        """Poll until job completes. Returns final state.
+
+        Pass ``application_id`` from ``submit_spark_job`` so polling does not call
+        ``list_applications`` again (and stays consistent if settings change mid-run).
+        """
         _log = log if log is not None else logging.getLogger(__name__)
         client = self._client()
+        app_id = (
+            str(application_id).strip()
+            if application_id and str(application_id).strip()
+            else self._resolve_application_id()
+        )
 
         while True:
             resp = client.get_job_run(
-                applicationId=self._resolve_application_id(),
+                applicationId=app_id,
                 jobRunId=job_run_id,
             )
             state = resp["jobRun"]["state"]

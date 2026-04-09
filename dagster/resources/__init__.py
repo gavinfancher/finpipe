@@ -42,5 +42,9 @@ def get_configured_resources() -> dict:
         ),
         "emr": EMRServerlessResource(
             execution_role_arn=_get_secret("finpipe/emr-role-arn", "EMR_ROLE_ARN"),
+            application_id=_get_secret("finpipe/emr-application-id", "EMR_APPLICATION_ID"),
+            app_name=(
+                _get_secret("finpipe/emr-app-name", "EMR_APP_NAME") or "finpipe-spark"
+            ),
         ),
     }

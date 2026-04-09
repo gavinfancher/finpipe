@@ -33,13 +33,15 @@ def silver_minute_aggs(
     """Submit bronze→silver transform to EMR Serverless and wait for completion."""
     context.log.info("submitting bronze→silver transform to EMR Serverless")
 
-    job_run_id = emr.submit_spark_job(
+    job_run_id, emr_app_id = emr.submit_spark_job(
         script_s3_path=SCRIPT_S3_PATH,
         name="finpipe-bronze-to-silver",
         log=context.log,
     )
 
-    state = emr.wait_for_job(job_run_id, log=context.log)
+    state = emr.wait_for_job(
+        job_run_id, log=context.log, application_id=emr_app_id
+    )
 
     return MaterializeResult(
         metadata={
