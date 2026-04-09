@@ -5,7 +5,10 @@ Steps (each visible in Dagster UI):
   1. launch_spot       — launch c5n.4xlarge spot instance
   2. setup_instance    — wait for SSM, clone repo, install deps
   3. run_staging       — run batch/main.py → stage parquet to S3
-  4. commit_to_iceberg — submit EMR job, terminate spot (no longer needed), wait for EMR to finish
+  4. commit_to_iceberg — submit EMR job, terminate spot (no longer needed), wait for EMR to finish.
+     The Spark driver is invoked with ``--cleanup``: after every staged file batch is written
+     to Iceberg successfully, it deletes all objects under ``s3://finpipe-lakehouse/bronze/staged/``.
+     If the EMR job fails partway through, staged parquet is left in place for a retry.
 
 Spot is torn down immediately after the EMR job is submitted (not after EMR completes), so you are not billed for the instance during the EMR run. Teardown is in the same op as commit so a teardown failure cannot mark the Dagster run failed while EMR keeps running.
 
@@ -22,6 +25,7 @@ Usage:
       year: 2025
       months: [1, 2, 3]
       workers: 16
+      staged_bronze_batch_size: 50   # optional; staged parquet files per EMR append (~days)
 """
 
 import time
@@ -53,6 +57,8 @@ class BackfillConfig(Config):
     year: int = 2025
     months: list[int] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     workers: int = 16
+    staged_bronze_batch_size: int = 50
+    """Staged Parquet files per Iceberg append (one file ≈ one trading day)."""
 
 
 class CommitStagedToBronzeConfig(Config):
@@ -60,6 +66,8 @@ class CommitStagedToBronzeConfig(Config):
 
     spot_instance_id: str | None = None
     """If set, terminate this instance after submitting EMR. Omit if spot is already gone."""
+    staged_bronze_batch_size: int = 50
+    """Same as ``BackfillConfig.staged_bronze_batch_size``."""
 
 
 # ---------- helpers ----------
@@ -210,11 +218,16 @@ def run_staging(context: OpExecutionContext, config: BackfillConfig, instance_id
 
 
 def _submit_staged_to_bronze_emr(
-    context: OpExecutionContext, emr: EMRServerlessResource
+    context: OpExecutionContext,
+    emr: EMRServerlessResource,
+    staged_bronze_batch_size: int,
 ) -> tuple[str, str]:
     """Submit staged→bronze PySpark on EMR; return ``(job_run_id, application_id)``."""
     script_path = f"s3://{S3_BUCKET}/scripts/staged_to_bronze.py"
-    context.log.info("submitting staged→bronze EMR job")
+    context.log.info(
+        "submitting staged→bronze EMR job (batch_size=%s staged files per append)",
+        staged_bronze_batch_size,
+    )
     # Iceberg partitioned create shuffles hard. Prefer many small executors with 1 core each so
     # each concurrent task owns a full executor heap (vs 2 tasks sharing one big JVM). Fits ~64GB app cap.
     #
@@ -236,7 +249,7 @@ def _submit_staged_to_bronze_emr(
     }
     job_run_id, emr_app_id = emr.submit_spark_job(
         script_s3_path=script_path,
-        args=["--cleanup"],
+        args=["--cleanup", "--batch-size", str(staged_bronze_batch_size)],
         name="finpipe-staged-to-bronze",
         log=context.log,
         spark_config=staged_bronze_spark,
@@ -263,7 +276,10 @@ def _terminate_spot_after_emr_submit(
 
 @op(out=Out(Nothing))
 def commit_to_iceberg(
-    context: OpExecutionContext, emr: EMRServerlessResource, instance_id: str
+    context: OpExecutionContext,
+    config: BackfillConfig,
+    emr: EMRServerlessResource,
+    instance_id: str,
 ):
     """Submit EMR staged→bronze job, tear down spot, then wait for EMR.
 
@@ -271,7 +287,9 @@ def commit_to_iceberg(
     so spot billing stops during the EMR run. Keeping submit/teardown/wait in one op
     avoids parallel teardown failing the Dagster run while EMR is still executing.
     """
-    job_run_id, emr_app_id = _submit_staged_to_bronze_emr(context, emr)
+    job_run_id, emr_app_id = _submit_staged_to_bronze_emr(
+        context, emr, config.staged_bronze_batch_size
+    )
     _terminate_spot_after_emr_submit(context, instance_id)
     state = emr.wait_for_job(
         job_run_id, log=context.log, application_id=emr_app_id
@@ -291,7 +309,9 @@ def commit_staged_to_bronze_only(
     ``run_staging`` output is missing from ``DAGSTER_HOME/storage`` (new host, wiped
     volume, or compose without persistent volumes — see ``deploy/ec2/docker-compose.yml``).
     """
-    job_run_id, emr_app_id = _submit_staged_to_bronze_emr(context, emr)
+    job_run_id, emr_app_id = _submit_staged_to_bronze_emr(
+        context, emr, config.staged_bronze_batch_size
+    )
     _terminate_spot_after_emr_submit(context, config.spot_instance_id)
     state = emr.wait_for_job(
         job_run_id, log=context.log, application_id=emr_app_id

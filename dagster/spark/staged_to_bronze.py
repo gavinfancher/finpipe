@@ -1,22 +1,31 @@
 """
 PySpark job: staged parquet → Iceberg bronze.
 
-Lists staged parquet files from S3, reads and writes them in small
-batches (~10 files at a time).  Each batch is a separate Iceberg
-append — bounded memory, and already-written batches are committed
-if the job dies mid-way.
+Lists staged parquet files from S3, reads and writes them in batches.
+Each batch is a separate Iceberg append. Partitioned by date only —
+ticker stays as a column but not a partition key, avoiding thousands
+of tiny S3 files per date.
 
 Runs on EMR Serverless — submitted by the Dagster backfill job after
-the EC2 spot instance finishes staging files.
+the EC2 spot instance finishes staging files. Dagster always passes
+``--cleanup``: staged objects under ``bronze/staged/`` are removed only
+after all batches append successfully (so a failed run keeps S3 staging
+for re-drive). Omit ``--cleanup`` for manual CLI tests if you want to
+keep staged files.
 
 Usage:
-    spark-submit staged_to_bronze.py [--cleanup]
+    spark-submit staged_to_bronze.py [--cleanup] [--batch-size N]
+
+Each staged file is one trading day (see ``batch/main.py``). Larger N means
+fewer Iceberg commits and usually faster wall time, until executor memory
+or the write path spikes — raise N gradually (e.g. 50 → 75 → 100) while
+watching the Spark UI, not ``driver`` heap.
 """
 
 import sys
 
 import boto3
-from pyspark.sql import DataFrame, SparkSession
+from pyspark.sql import SparkSession
 from pyspark.sql.types import (
     DoubleType,
     LongType,
@@ -27,9 +36,25 @@ from pyspark.sql.types import (
 
 S3_BUCKET = "finpipe-lakehouse"
 STAGED_PREFIX = "bronze/staged/"
-STAGED_PATH = f"s3://{S3_BUCKET}/{STAGED_PREFIX}"
 BRONZE_TABLE = "glue.finpipe_bronze.equities_minute_aggs"
-BATCH_SIZE = 3
+DEFAULT_BATCH_FILES = 50
+"""Staged parquet files per Iceberg append (one file ≈ one calendar day)."""
+
+
+def _parse_job_args(argv: list[str]) -> tuple[bool, int]:
+    do_cleanup = "--cleanup" in argv
+    batch_size = DEFAULT_BATCH_FILES
+    if "--batch-size" in argv:
+        i = argv.index("--batch-size")
+        if i + 1 >= len(argv):
+            raise SystemExit("--batch-size requires a positive integer")
+        try:
+            batch_size = int(argv[i + 1])
+        except ValueError as e:
+            raise SystemExit("--batch-size must be an integer") from e
+    if batch_size < 1:
+        raise SystemExit("--batch-size must be >= 1")
+    return do_cleanup, batch_size
 
 BRONZE_PARQUET_SCHEMA = StructType(
     [
@@ -73,19 +98,10 @@ def cleanup_staged(bucket: str, prefix: str):
     print(f"deleted {count} staged files from s3://{bucket}/{prefix}")
 
 
-def read_batch(spark: SparkSession, paths: list[str]) -> DataFrame:
-    return (
-        spark.read.schema(BRONZE_PARQUET_SCHEMA)
-        .parquet(*paths)
-        .sortWithinPartitions("date", "ticker")
-    )
-
-
 def main():
-    do_cleanup = "--cleanup" in sys.argv
+    do_cleanup, batch_size = _parse_job_args(sys.argv)
 
     spark = SparkSession.builder.appName("finpipe-staged-to-bronze").getOrCreate()
-    spark.conf.set("spark.sql.shuffle.partitions", "12")
 
     files = list_staged_files()
     print(f"found {len(files)} staged parquet files")
@@ -97,19 +113,20 @@ def main():
 
     table_exists = spark.catalog.tableExists(BRONZE_TABLE)
 
-    for i in range(0, len(files), BATCH_SIZE):
-        batch_files = files[i : i + BATCH_SIZE]
-        batch_num = i // BATCH_SIZE + 1
-        print(f"batch {batch_num}: {len(batch_files)} files — {batch_files[0].split('/')[-1]}..{batch_files[-1].split('/')[-1]}")
+    for i in range(0, len(files), batch_size):
+        batch_files = files[i : i + batch_size]
+        batch_num = i // batch_size + 1
+        print(f"batch {batch_num}: {len(batch_files)} files")
 
-        df = read_batch(spark, batch_files)
+        df = spark.read.schema(BRONZE_PARQUET_SCHEMA).parquet(*batch_files)
 
         if not table_exists:
             (
                 df.writeTo(BRONZE_TABLE)
                 .tableProperty("write.format.default", "parquet")
                 .tableProperty("write.parquet.compression-codec", "zstd")
-                .partitionedBy("date", "ticker")
+                .tableProperty("write.target-file-size-bytes", "134217728")
+                .partitionedBy("date")
                 .create()
             )
             table_exists = True
@@ -118,7 +135,8 @@ def main():
             df.writeTo(BRONZE_TABLE).append()
             print(f"  appended")
 
-    print(f"done — {len(files)} files written in {(len(files) + BATCH_SIZE - 1) // BATCH_SIZE} batches")
+    n_batches = (len(files) + batch_size - 1) // batch_size
+    print(f"done — {len(files)} files in {n_batches} batches (batch_size={batch_size})")
 
     if do_cleanup:
         cleanup_staged(S3_BUCKET, STAGED_PREFIX)
