@@ -302,7 +302,13 @@ def backfill_graph():
 
 backfill_job = backfill_graph.to_job(name="backfill_job")
 
-commit_staged_to_bronze_job = commit_staged_to_bronze_only.to_job(
+
+@graph
+def commit_staged_to_bronze_graph():
+    commit_staged_to_bronze_only()
+
+
+commit_staged_to_bronze_job = commit_staged_to_bronze_graph.to_job(
     name="commit_staged_to_bronze_job",
 )
 
