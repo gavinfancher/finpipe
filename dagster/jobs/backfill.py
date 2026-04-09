@@ -232,7 +232,7 @@ def _submit_staged_to_bronze_emr(
         "spark.executor.memoryOverhead": "1536m",
         "spark.sql.adaptive.enabled": "true",
         "spark.sql.adaptive.coalescePartitions.enabled": "true",
-        "spark.sql.shuffle.partitions": "96",
+        "spark.sql.shuffle.partitions": "12",
     }
     job_run_id, emr_app_id = emr.submit_spark_job(
         script_s3_path=script_path,

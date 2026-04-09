@@ -1,8 +1,10 @@
 """
 PySpark job: staged parquet → Iceberg bronze.
 
-Reads all staged parquet files written by the backfill batch job,
-writes to Iceberg bronze table, then cleans up staged files on success.
+Lists staged parquet files from S3, reads and writes them in small
+batches (~10 files at a time).  Each batch is a separate Iceberg
+append — bounded memory, and already-written batches are committed
+if the job dies mid-way.
 
 Runs on EMR Serverless — submitted by the Dagster backfill job after
 the EC2 spot instance finishes staging files.
@@ -14,7 +16,7 @@ Usage:
 import sys
 
 import boto3
-from pyspark.sql import SparkSession
+from pyspark.sql import DataFrame, SparkSession
 from pyspark.sql.types import (
     DoubleType,
     LongType,
@@ -24,10 +26,11 @@ from pyspark.sql.types import (
 )
 
 S3_BUCKET = "finpipe-lakehouse"
-STAGED_PATH = f"s3://{S3_BUCKET}/bronze/staged/"
+STAGED_PREFIX = "bronze/staged/"
+STAGED_PATH = f"s3://{S3_BUCKET}/{STAGED_PREFIX}"
 BRONZE_TABLE = "glue.finpipe_bronze.equities_minute_aggs"
+BATCH_SIZE = 10
 
-# Align with common.schemas.BRONZE_SCHEMA (PyArrow batch writer).
 BRONZE_PARQUET_SCHEMA = StructType(
     [
         StructField("ticker", StringType(), True),
@@ -44,6 +47,19 @@ BRONZE_PARQUET_SCHEMA = StructType(
 )
 
 
+def list_staged_files() -> list[str]:
+    """Return sorted S3 URIs for all staged parquet files."""
+    s3 = boto3.client("s3", region_name="us-east-1")
+    paginator = s3.get_paginator("list_objects_v2")
+    paths = []
+    for page in paginator.paginate(Bucket=S3_BUCKET, Prefix=STAGED_PREFIX):
+        for obj in page.get("Contents", []):
+            if obj["Key"].endswith(".parquet"):
+                paths.append(f"s3://{S3_BUCKET}/{obj['Key']}")
+    paths.sort()
+    return paths
+
+
 def cleanup_staged(bucket: str, prefix: str):
     """Delete all objects under the staged prefix."""
     s3 = boto3.client("s3", region_name="us-east-1")
@@ -57,46 +73,60 @@ def cleanup_staged(bucket: str, prefix: str):
     print(f"deleted {count} staged files from s3://{bucket}/{prefix}")
 
 
+def read_batch(spark: SparkSession, paths: list[str]) -> DataFrame:
+    return (
+        spark.read.schema(BRONZE_PARQUET_SCHEMA)
+        .parquet(*paths)
+        .sortWithinPartitions("date", "ticker")
+    )
+
+
 def main():
     do_cleanup = "--cleanup" in sys.argv
 
     spark = SparkSession.builder.appName("finpipe-staged-to-bronze").getOrCreate()
+    spark.conf.set("spark.sql.shuffle.partitions", "12")
 
-    # Nested keys: bronze/staged/{year}/*.parquet — recurse and ignore non-parquet S3 keys.
-    df = (
-        spark.read.option("recursiveFileLookup", "true")
-        .option("pathGlobFilter", "*.parquet")
-        .schema(BRONZE_PARQUET_SCHEMA)
-        .parquet(STAGED_PATH)
-    )
-    row_count = df.count()
-    print(f"read {row_count:,} rows from {STAGED_PATH}")
+    files = list_staged_files()
+    print(f"found {len(files)} staged parquet files")
 
-    if row_count == 0:
+    if not files:
         print("no staged data to process")
         spark.stop()
         return
 
-    # Shuffle width ~ executor parallelism (see backfill EMR spark.sql.shuffle.partitions).
-    spark.conf.set("spark.sql.shuffle.partitions", "96")
-    df = df.repartition(96, "date", "ticker")
+    table_exists = spark.catalog.tableExists(BRONZE_TABLE)
+    total_rows = 0
 
-    # Fanout writer: avoid global sort-by-partition shuffle on create (major source of OOM vs raw size).
-    # https://iceberg.apache.org/docs/latest/spark-writes/
-    w = df.writeTo(BRONZE_TABLE).option("fanout-enabled", "true")
+    for i in range(0, len(files), BATCH_SIZE):
+        batch_files = files[i : i + BATCH_SIZE]
+        batch_num = i // BATCH_SIZE + 1
+        print(f"batch {batch_num}: {len(batch_files)} files")
 
-    # write to iceberg
-    if spark.catalog.tableExists(BRONZE_TABLE):
-        w.append()
-        print(f"appended to {BRONZE_TABLE}")
-    else:
-        w.partitionedBy("date", "ticker").create()
-        print(f"created {BRONZE_TABLE}")
+        df = read_batch(spark, batch_files)
+        batch_rows = df.count()
+        print(f"  {batch_rows:,} rows")
 
-    print(f"wrote {row_count:,} rows to {BRONZE_TABLE}")
+        if not table_exists:
+            (
+                df.writeTo(BRONZE_TABLE)
+                .tableProperty("write.format.default", "parquet")
+                .tableProperty("write.parquet.compression-codec", "zstd")
+                .partitionedBy("date", "ticker")
+                .create()
+            )
+            table_exists = True
+            print(f"  created {BRONZE_TABLE}")
+        else:
+            df.writeTo(BRONZE_TABLE).append()
+            print(f"  appended to {BRONZE_TABLE}")
+
+        total_rows += batch_rows
+
+    print(f"done — {total_rows:,} rows across {len(files)} files")
 
     if do_cleanup:
-        cleanup_staged(S3_BUCKET, "bronze/staged/")
+        cleanup_staged(S3_BUCKET, STAGED_PREFIX)
 
     spark.stop()
 
