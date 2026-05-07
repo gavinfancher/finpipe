@@ -1,129 +1,101 @@
-# finpipe deploy
+# deploy/ — finpipe runtime on GCP / homelab
 
-## architecture
+Single-host docker-compose stack. Two deployment targets, one compose file:
 
-```
-Internet
-  │
-  ▼
-Cloudflare Tunnel (api.finpipe.app → ws-relay:8080)
-  │
-  ▼
-EC2 t3.small (us-east-1a) ─── "finpipe-streaming"
-  ├── ws-relay         (FastAPI + WebSocket, port 8080)
-  ├── control          (ticker assignment, port 8081)
-  ├── ingest           (Massive API → Redpanda, scalable)
-  ├── redpanda         (Kafka-compatible, port 9092)
-  ├── redpanda-console (admin UI, port 8888)
-  └── cloudflared      (tunnel agent)
-  │
-  ├──► RDS PostgreSQL    (finpipe-db, db.t4g.micro)
-  └──► ElastiCache Valkey (finpipe-cache, cache.t4g.micro)
+- **homelab VM** (primary) — runs hot, authenticated to GCP via a service-account key
+- **GCP VM** (planned standby) — same compose, no key file (uses the attached SA)
 
-Frontend: Cloudflare Pages (finpipe.app)
-```
+Bootstrap scripts that *create* the GCP project, buckets, IAM, BigLake catalog,
+Dataproc, etc. live in `gcp-finpipe/` (separate repo). This directory is only
+about running the app on a host that already has GCP access.
 
-## directory layout
+## Layout
 
 ```
 deploy/
-├── aws/           # infrastructure provisioning scripts (boto3)
-│   ├── config.py  # shared VPC, subnet, account constants
-│   ├── ec2/       # EC2 instance + SG + IAM
-│   ├── rds/       # RDS PostgreSQL
-│   └── valkey/    # ElastiCache Valkey
-├── docker/        # shared Dockerfile (used by ec2 + local)
-├── ec2/           # EC2 docker-compose, cloudflared config, setup.py
-├── local/         # local dev docker-compose + .env
-└── dagster/       # dagster deployment config
+  compose/
+    docker-compose.yml         # all services
+    dagster/                   # mounted into dagster containers
+      dagster.yaml
+      workspace.yaml
+  docker/
+    Dockerfile.python          # base for api / control / ingest
+    Dockerfile.dagster         # base for dagster-{code,webserver,daemon}
+  secrets/
+    load_secrets.sh            # GCP Secret Manager → .env
+    .env.example
+    .env                       # generated, gitignored
+  host/
+    bootstrap.sh               # one-shot host setup (docker, gcloud, clone, systemd)
+    finpipe.service            # systemd unit
+    deploy.sh                  # `git pull` + restart code-mounted services
 ```
 
-## secrets (AWS Secrets Manager)
+`deploy/ec2/` and `deploy/local/` are AWS-era and will be removed once the GCP
+path is live; left in place so `main` keeps working.
 
-individual entries under `finpipe/`:
-
-- `finpipe/db-password`
-- `finpipe/jwt-secret`
-- `finpipe/beta-key`
-- `finpipe/massive` (Massive API secret key)
-- `finpipe/admin-password`
-- `finpipe/cloudflared-credentials` (tunnel credentials JSON)
-- `finpipe/cloudflared-cert` (origin cert PEM)
-
-## deploying
-
-### push to EC2 (from laptop)
+## First-time setup on a host
 
 ```bash
-make deploy
-# or just push to main — GitHub Actions runs the same thing
+# 1. (homelab only) drop the SA key in place
+mkdir -p ~/.config/finpipe && cp sa-key.json ~/.config/finpipe/
+
+# 2. bootstrap the host (installs docker + gcloud, clones repo, installs systemd unit)
+sudo ./deploy/host/bootstrap.sh
+
+# 3. authenticate gcloud (homelab only)
+gcloud auth activate-service-account --key-file=$HOME/.config/finpipe/sa-key.json
+
+# 4. pull secrets from Secret Manager and write deploy/secrets/.env
+export GCP_PROJECT_ID=<your-project>
+export GCS_LAKEHOUSE_BUCKET=finpipe-lakehouse
+export GCS_DATA_BUCKET=finpipe-data
+./deploy/secrets/load_secrets.sh
+
+# 5. (homelab only) tell compose where the SA key lives
+echo "SA_KEY_PATH=$HOME/.config/finpipe/sa-key.json" >> deploy/secrets/.env
+echo "GOOGLE_APPLICATION_CREDENTIALS=/secrets/sa-key.json" >> deploy/secrets/.env
+
+# 6. start
+sudo systemctl start finpipe.service
 ```
 
-this SSHs into the EC2 instance, runs `git pull`, and rebuilds containers.
-
-### first-time EC2 setup
-
-the EC2 user-data script (`deploy/ec2/user-data.sh`) handles bootstrap:
-
-1. installs docker, AWS CLI, uv
-2. clones the repo
-3. runs `deploy/ec2/setup.py` — pulls secrets from Secrets Manager, resolves RDS/Valkey endpoints, writes `.env` + cloudflared credentials
-4. `docker compose up --build -d`
-
-### local dev
+## Day-to-day deploy
 
 ```bash
-make local-dev-up    # SSH tunnel to RDS + Valkey, backend containers, frontend
-make local-dev-down  # tear it all down
+./deploy/host/deploy.sh
 ```
 
-connects to real AWS RDS + Valkey via SSH tunnel through the EC2 instance.
-containers use `host.docker.internal` to reach tunneled ports on localhost.
+`git pull` + `docker compose restart` for code-mounted services. Rebuilds the
+Python image only when `uv.lock` or any `pyproject.toml` changed.
 
-### database access (DataGrip, redis-cli, psql)
+## Code-mount model
+
+Every Python service mounts the repo at `/workspace`. Compose entrypoints run
+`uv run …` against the pre-installed `.venv` baked into the image. Edits to
+`backend/` or `dagster/` show up after a `restart` (or instantly for `api`,
+which has `--reload`).
+
+When deps change:
 
 ```bash
-make aws-db-up    # SSH tunnel: localhost:5432 → RDS, localhost:6379 → Valkey
-make aws-db-down  # kill tunnels
+docker compose -f deploy/compose/docker-compose.yml build api dagster-code
+docker compose -f deploy/compose/docker-compose.yml up -d
 ```
 
-## cloudflare tunnel
+## Cloudflare tunnel
 
-the tunnel runs as a container in the EC2 docker-compose. config:
+Single named tunnel, token stored as `finpipe-cloudflared-token` in Secret
+Manager. Same token on homelab and GCP VM — Cloudflare treats them as
+redundant connectors. Hostname → service routing is configured in the
+Cloudflare dashboard, not in this repo.
 
-- `deploy/ec2/cloudflared-config.yml` — ingress rules (api.finpipe.app → ws-relay:8080)
-- credentials + cert are pulled from Secrets Manager by `setup.py`
-- tunnel ID: `ad360029-e242-4123-888d-f156fc0bc701`
-- DNS: `api.finpipe.app` CNAME → tunnel
+## Two-host story
 
-## CI/CD
+Homelab primary. GCP VM is brought up only for a planned demo / interview.
+Procedure:
 
-`.github/workflows/deploy.yml` — triggers on push to main (excluding frontend/dagster/markdown).
-
-GitHub secrets needed:
-- `AWS_ACCESS_KEY_ID` / `AWS_SECRET_ACCESS_KEY` (IAM user `finpipe-github-actions`, ec2:DescribeInstances only)
-- `EC2_SSH_KEY` (contents of SSH private key)
-
-GitHub variables:
-- `EC2_INSTANCE_ID` (`i-00087dd289e2900f8`)
-
-## make targets
-
-```bash
-# local dev
-make local-dev-up     # tunnel + containers + frontend
-make local-dev-down   # stop everything
-make local-dev-logs   # tail container logs
-
-# database tunnels
-make aws-db-up        # SSH tunnel to RDS + Valkey
-make aws-db-down      # kill tunnels
-
-# EC2
-make deploy           # git pull + rebuild on EC2
-make ec2-ssh          # SSH into EC2
-make ec2-status       # docker ps on EC2
-make ec2-logs         # docker compose logs on EC2
-make ec2-stop         # stop EC2 instance
-make ec2-start        # start EC2 instance
-```
+1. On homelab: `pg_dump | gzip > pgdata.sql.gz` and copy to GCP VM.
+2. On GCP VM: `bootstrap.sh`, `load_secrets.sh`, restore the dump into the
+   `postgres` volume, `systemctl start finpipe.service`.
+3. Stop homelab's `cloudflared` (or leave both up — Cloudflare load-balances).

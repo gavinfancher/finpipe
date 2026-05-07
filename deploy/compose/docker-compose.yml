@@ -1,0 +1,232 @@
+# finpipe — single-host compose stack (homelab primary, GCP VM standby).
+#
+# Source code is bind-mounted from the repo root, so deploys are `git pull` +
+# `docker compose restart <svc>`. Rebuild images only when uv.lock changes.
+#
+# Run from repo root:
+#   set -a && source deploy/secrets/.env && set +a
+#   docker compose -f deploy/compose/docker-compose.yml up -d
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redpanda:
+    image: redpandadata/redpanda:latest
+    restart: unless-stopped
+    command:
+      - redpanda
+      - start
+      - --mode=dev-container
+      - --smp=1
+      - --memory=512M
+      - --advertise-kafka-addr=redpanda:9092
+    volumes:
+      - redpandadata:/var/redpanda/data
+    healthcheck:
+      test: ["CMD", "rpk", "cluster", "health"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    restart: unless-stopped
+    command: tunnel --no-autoupdate run
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARED_TOKEN}
+    depends_on:
+      api:
+        condition: service_started
+
+  # ---- application services (code bind-mounted, no rebuild on code change) ----
+
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.python
+    image: finpipe-python
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      KAFKA_BOOTSTRAP: redpanda:9092
+      JWT_SECRET: ${JWT_SECRET}
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+    volumes:
+      - ../..:/workspace
+      - ${SA_KEY_PATH:-/dev/null}:/secrets/sa-key.json:ro
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      redpanda:
+        condition: service_healthy
+
+  control:
+    image: finpipe-python
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: ["python", "-m", "streaming.control"]
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ../..:/workspace
+    depends_on:
+      api:
+        condition: service_started
+
+  ingest:
+    image: finpipe-python
+    restart: unless-stopped
+    working_dir: /workspace/backend
+    command: ["python", "-m", "streaming.ingest"]
+    environment:
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      KAFKA_BOOTSTRAP: redpanda:9092
+      REDIS_URL: redis://redis:6379/0
+    volumes:
+      - ../..:/workspace
+    depends_on:
+      redpanda:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ---- dagster (webserver + daemon + code-server) ----
+
+  dagster-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: dagster
+      POSTGRES_PASSWORD: dagster
+      POSTGRES_DB: dagster
+    volumes:
+      - dagster_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U dagster"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  dagster-code:
+    build:
+      context: ../..
+      dockerfile: deploy/docker/Dockerfile.dagster
+    image: finpipe-dagster
+    restart: unless-stopped
+    working_dir: /workspace/dagster
+    command: ["dagster", "code-server", "start", "-h", "0.0.0.0", "-p", "4000", "-f", "definitions.py"]
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      DAGSTER_PG_HOST: dagster-postgres
+      DAGSTER_PG_USER: dagster
+      DAGSTER_PG_PASSWORD: dagster
+      DAGSTER_PG_DB: dagster
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+      REDIS_URL: redis://redis:6379/0
+      MASSIVE_API_KEY: ${MASSIVE_API_KEY}
+      GCP_PROJECT_ID: ${GCP_PROJECT_ID:-}
+      GCS_LAKEHOUSE_BUCKET: ${GCS_LAKEHOUSE_BUCKET:-}
+      GCS_DATA_BUCKET: ${GCS_DATA_BUCKET:-}
+      DATAPROC_REGION: ${DATAPROC_REGION:-us-central1}
+      DATAPROC_SERVICE_ACCOUNT: ${DATAPROC_SERVICE_ACCOUNT:-}
+      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
+    volumes:
+      - ../..:/workspace
+      - ./dagster/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./dagster/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - dagster_storage:/opt/dagster/dagster_home/storage
+      - dagster_compute_logs:/opt/dagster/dagster_home/compute_logs
+      - ${SA_KEY_PATH:-/dev/null}:/secrets/sa-key.json:ro
+    depends_on:
+      dagster-postgres:
+        condition: service_healthy
+
+  dagster-webserver:
+    image: finpipe-dagster
+    restart: unless-stopped
+    working_dir: /workspace/dagster
+    command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "/opt/dagster/dagster_home/workspace.yaml"]
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      DAGSTER_PG_HOST: dagster-postgres
+      DAGSTER_PG_USER: dagster
+      DAGSTER_PG_PASSWORD: dagster
+      DAGSTER_PG_DB: dagster
+    volumes:
+      - ../..:/workspace
+      - ./dagster/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./dagster/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - dagster_storage:/opt/dagster/dagster_home/storage
+      - dagster_compute_logs:/opt/dagster/dagster_home/compute_logs
+    ports:
+      - "3000:3000"
+    depends_on:
+      dagster-postgres:
+        condition: service_healthy
+      dagster-code:
+        condition: service_started
+
+  dagster-daemon:
+    image: finpipe-dagster
+    restart: unless-stopped
+    working_dir: /workspace/dagster
+    command: ["dagster-daemon", "run", "-w", "/opt/dagster/dagster_home/workspace.yaml"]
+    environment:
+      DAGSTER_HOME: /opt/dagster/dagster_home
+      DAGSTER_PG_HOST: dagster-postgres
+      DAGSTER_PG_USER: dagster
+      DAGSTER_PG_PASSWORD: dagster
+      DAGSTER_PG_DB: dagster
+    volumes:
+      - ../..:/workspace
+      - ./dagster/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./dagster/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - dagster_storage:/opt/dagster/dagster_home/storage
+      - dagster_compute_logs:/opt/dagster/dagster_home/compute_logs
+    depends_on:
+      dagster-postgres:
+        condition: service_healthy
+      dagster-code:
+        condition: service_started
+
+volumes:
+  pgdata:
+  redisdata:
+  redpandadata:
+  dagster_pg:
+  dagster_storage:
+  dagster_compute_logs:
