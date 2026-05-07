@@ -15,27 +15,26 @@ an authenticated gcloud session.
 ```
 deploy/
   compose.yml                    # the only compose file
+  up.sh                          # load_secrets + docker compose up -d
+  load_secrets.sh                # GCP Secret Manager → deploy/.env
+  env.example
+  .env                           # generated, gitignored
   dockerfiles/
     python.Dockerfile            # base for api / control / ingest
     dagster.Dockerfile           # base for dagster-{code,webserver,daemon}
-    dagster-config/              # bind-mounted into dagster containers
-      dagster.yaml
-      workspace.yaml
-  host/
-    load_secrets.sh              # GCP Secret Manager → deploy/host/.env
-    up.sh                        # load_secrets + docker compose up -d
-    env.example
-    .env                         # generated, gitignored
+  dagster-config/                # bind-mounted into dagster containers
+    dagster.yaml
+    workspace.yaml
 ```
 
 ## Bring the stack up
 
 ```bash
 export GCP_PROJECT_ID=<your-project>
-./deploy/host/up.sh
+./deploy/up.sh
 ```
 
-That's it. `up.sh` regenerates `deploy/host/.env` from Secret Manager and runs
+That's it. `up.sh` regenerates `deploy/.env` from Secret Manager and runs
 `docker compose up -d`.
 
 For code changes:

@@ -4,7 +4,7 @@
 # `docker compose restart <svc>`. Rebuild images only when uv.lock changes.
 #
 # Run from repo root:
-#   set -a && source deploy/host/.env && set +a
+#   set -a && source deploy/.env && set +a
 #   docker compose -f deploy/compose.yml up -d
 #
 # All paths in this file are relative to deploy/.
@@ -19,6 +19,8 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5433:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER}"]
       interval: 5s
@@ -31,6 +33,8 @@ services:
     command: ["valkey-server", "--appendonly", "yes"]
     volumes:
       - redisdata:/data
+    ports:
+      - "127.0.0.1:6379:6379"
     healthcheck:
       test: ["CMD", "valkey-cli", "ping"]
       interval: 5s
@@ -76,10 +80,12 @@ services:
     working_dir: /workspace/backend
     command: ["uvicorn", "api.app:app", "--host", "0.0.0.0", "--port", "8080", "--reload"]
     environment:
+      PYTHONPATH: /workspace:/workspace/backend
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
       KAFKA_BOOTSTRAP: redpanda:9092
       JWT_SECRET: ${JWT_SECRET}
+      BETA_KEY: ${BETA_KEY}
       MASSIVE_API_KEY: ${MASSIVE_API_KEY}
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
     volumes:
@@ -97,10 +103,12 @@ services:
 
   control:
     image: finpipe-python
+    pull_policy: never
     restart: unless-stopped
     working_dir: /workspace/backend
     command: ["python", "-m", "streaming.control"]
     environment:
+      PYTHONPATH: /workspace:/workspace/backend
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
     volumes:
@@ -111,10 +119,12 @@ services:
 
   ingest:
     image: finpipe-python
+    pull_policy: never
     restart: unless-stopped
     working_dir: /workspace/backend
     command: ["python", "-m", "streaming.ingest"]
     environment:
+      PYTHONPATH: /workspace:/workspace/backend
       MASSIVE_API_KEY: ${MASSIVE_API_KEY}
       KAFKA_BOOTSTRAP: redpanda:9092
       REDIS_URL: redis://redis:6379/0
@@ -137,6 +147,8 @@ services:
       POSTGRES_DB: dagster
     volumes:
       - dagster_pg:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:5434:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U dagster"]
       interval: 5s
@@ -152,6 +164,7 @@ services:
     working_dir: /workspace/dagster
     command: ["dagster", "code-server", "start", "-h", "0.0.0.0", "-p", "4000", "-f", "definitions.py"]
     environment:
+      PYTHONPATH: /workspace:/workspace/backend:/workspace/dagster
       DAGSTER_HOME: /opt/dagster/dagster_home
       DAGSTER_PG_HOST: dagster-postgres
       DAGSTER_PG_USER: dagster
@@ -168,8 +181,8 @@ services:
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
     volumes:
       - ..:/workspace
-      - ./dockerfiles/dagster-config/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
-      - ./dockerfiles/dagster-config/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - ./dagster-config/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./dagster-config/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
       - dagster_storage:/opt/dagster/dagster_home/storage
       - dagster_compute_logs:/opt/dagster/dagster_home/compute_logs
       - ${SA_KEY_PATH:-/dev/null}:/secrets/sa-key.json:ro
@@ -179,10 +192,12 @@ services:
 
   dagster-webserver:
     image: finpipe-dagster
+    pull_policy: never
     restart: unless-stopped
     working_dir: /workspace/dagster
     command: ["dagster-webserver", "-h", "0.0.0.0", "-p", "3000", "-w", "/opt/dagster/dagster_home/workspace.yaml"]
     environment:
+      PYTHONPATH: /workspace:/workspace/backend:/workspace/dagster
       DAGSTER_HOME: /opt/dagster/dagster_home
       DAGSTER_PG_HOST: dagster-postgres
       DAGSTER_PG_USER: dagster
@@ -190,8 +205,8 @@ services:
       DAGSTER_PG_DB: dagster
     volumes:
       - ..:/workspace
-      - ./dockerfiles/dagster-config/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
-      - ./dockerfiles/dagster-config/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - ./dagster-config/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./dagster-config/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
       - dagster_storage:/opt/dagster/dagster_home/storage
       - dagster_compute_logs:/opt/dagster/dagster_home/compute_logs
     ports:
@@ -204,10 +219,12 @@ services:
 
   dagster-daemon:
     image: finpipe-dagster
+    pull_policy: never
     restart: unless-stopped
     working_dir: /workspace/dagster
     command: ["dagster-daemon", "run", "-w", "/opt/dagster/dagster_home/workspace.yaml"]
     environment:
+      PYTHONPATH: /workspace:/workspace/backend:/workspace/dagster
       DAGSTER_HOME: /opt/dagster/dagster_home
       DAGSTER_PG_HOST: dagster-postgres
       DAGSTER_PG_USER: dagster
@@ -215,8 +232,8 @@ services:
       DAGSTER_PG_DB: dagster
     volumes:
       - ..:/workspace
-      - ./dockerfiles/dagster-config/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
-      - ./dockerfiles/dagster-config/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - ./dagster-config/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./dagster-config/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
       - dagster_storage:/opt/dagster/dagster_home/storage
       - dagster_compute_logs:/opt/dagster/dagster_home/compute_logs
     depends_on:
