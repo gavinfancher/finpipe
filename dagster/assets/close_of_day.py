@@ -11,13 +11,13 @@ from datetime import timedelta
 import pendulum
 from dagster import AssetExecutionContext, MetadataValue, asset
 
-from common.market import (
+from core.market import (
     PERF_LABELS,
     derive_close_of_day_perf_fields,
     fetch_close,
     trading_dates,
 )
-from common.redis_keys import LABEL_TO_REF, TICKER_KEY
+from core.redis_keys import LABEL_TO_REF, TICKER_KEY
 from resources.massive_api import MassiveAPIResource
 from resources.postgres import PostgresResource
 from resources.redis import RedisResource

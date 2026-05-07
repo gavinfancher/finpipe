@@ -7,7 +7,7 @@ import os
 
 import asyncpg
 
-from common.postgres import get_all_tickers as _get_all_tickers
+from core.postgres import get_all_tickers as _get_all_tickers
 from core.config import DATABASE_URL
 
 logger = logging.getLogger(__name__)

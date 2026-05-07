@@ -221,7 +221,7 @@ def derive_close_of_day_perf_fields(
     """Compute change and perf* hash fields from today's close and reference closes.
 
     ``ref_closes`` keys are period labels (e.g. ``5d``, ``1m``) matching
-    ``label_to_ref`` (e.g. common.redis_keys.LABEL_TO_REF).
+    ``label_to_ref`` (e.g. core.redis_keys.LABEL_TO_REF).
     """
     out: dict[str, str] = {}
     if prev_close is not None:

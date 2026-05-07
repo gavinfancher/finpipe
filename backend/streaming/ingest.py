@@ -19,7 +19,7 @@ import httpx
 import redis.asyncio as aioredis
 from aiokafka import AIOKafkaProducer
 from massive import WebSocketClient
-from common.redis_keys import ASSIGNMENTS_KEY, CHANNEL
+from core.redis_keys import ASSIGNMENTS_KEY, CHANNEL
 from massive.websocket.models import EquityAgg, Feed, Market
 
 logging.basicConfig(

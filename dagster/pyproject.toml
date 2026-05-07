@@ -15,11 +15,11 @@ dependencies = [
     "pandas-market-calendars>=5.3.1.2",
     "redis>=5.0.0",
     "pyiceberg[glue]>=0.7.0",
-    "finpipe-common",
+    "finpipe-backend",
 ]
 
 [tool.uv.sources]
-finpipe-common = { workspace = true }
+finpipe-backend = { workspace = true }
 
 [build-system]
 requires = ["hatchling"]

@@ -13,4 +13,4 @@ build-backend = "setuptools.build_meta"
 include = ["infra*"]
 
 [tool.uv.workspace]
-members = ["backend", "dagster", "common"]
+members = ["backend", "dagster"]

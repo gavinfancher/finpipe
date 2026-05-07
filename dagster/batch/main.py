@@ -25,7 +25,7 @@ import pyarrow as pa
 import pyarrow.csv as pa_csv
 import pyarrow.parquet as pq
 from botocore.config import Config
-from common.schemas import BRONZE_SCHEMA, CSV_CONVERT_OPTS, CSV_READ_OPTS, MASSIVE_COLUMNS
+from core.schemas import BRONZE_SCHEMA, CSV_CONVERT_OPTS, CSV_READ_OPTS, MASSIVE_COLUMNS
 
 logging.basicConfig(
     level=logging.INFO,

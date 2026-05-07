@@ -14,8 +14,8 @@ import logging
 import os
 
 import redis.asyncio as aioredis
-from common.market import trading_dates
-from common.redis_keys import (
+from core.market import trading_dates
+from core.redis_keys import (
     LABEL_TO_REF,
     PERF_FIELDS,
     REF_FIELDS,
@@ -172,7 +172,7 @@ async def fetch_and_cache_ticker(ticker: str) -> dict | None:
         # Fetch perf reference closes
         ref_dates = await loop.run_in_executor(None, trading_dates)
 
-        from common.market import fetch_close
+        from core.market import fetch_close
 
         mapping: dict[str, str] = {
             "price": str(price),

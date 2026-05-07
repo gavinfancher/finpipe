@@ -4,8 +4,10 @@
 # `docker compose restart <svc>`. Rebuild images only when uv.lock changes.
 #
 # Run from repo root:
-#   set -a && source deploy/secrets/.env && set +a
-#   docker compose -f deploy/compose/docker-compose.yml up -d
+#   set -a && source deploy/host/.env && set +a
+#   docker compose -f deploy/compose.yml up -d
+#
+# All paths in this file are relative to deploy/.
 
 services:
   postgres:
@@ -67,8 +69,8 @@ services:
 
   api:
     build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.python
+      context: ..
+      dockerfile: deploy/dockerfiles/python.Dockerfile
     image: finpipe-python
     restart: unless-stopped
     working_dir: /workspace/backend
@@ -81,7 +83,7 @@ services:
       MASSIVE_API_KEY: ${MASSIVE_API_KEY}
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
     volumes:
-      - ../..:/workspace
+      - ..:/workspace
       - ${SA_KEY_PATH:-/dev/null}:/secrets/sa-key.json:ro
     ports:
       - "8080:8080"
@@ -102,7 +104,7 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
     volumes:
-      - ../..:/workspace
+      - ..:/workspace
     depends_on:
       api:
         condition: service_started
@@ -117,7 +119,7 @@ services:
       KAFKA_BOOTSTRAP: redpanda:9092
       REDIS_URL: redis://redis:6379/0
     volumes:
-      - ../..:/workspace
+      - ..:/workspace
     depends_on:
       redpanda:
         condition: service_healthy
@@ -131,7 +133,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: dagster
-      POSTGRES_PASSWORD: dagster
+      POSTGRES_PASSWORD: ${DAGSTER_PG_PASSWORD}
       POSTGRES_DB: dagster
     volumes:
       - dagster_pg:/var/lib/postgresql/data
@@ -143,8 +145,8 @@ services:
 
   dagster-code:
     build:
-      context: ../..
-      dockerfile: deploy/docker/Dockerfile.dagster
+      context: ..
+      dockerfile: deploy/dockerfiles/dagster.Dockerfile
     image: finpipe-dagster
     restart: unless-stopped
     working_dir: /workspace/dagster
@@ -153,7 +155,7 @@ services:
       DAGSTER_HOME: /opt/dagster/dagster_home
       DAGSTER_PG_HOST: dagster-postgres
       DAGSTER_PG_USER: dagster
-      DAGSTER_PG_PASSWORD: dagster
+      DAGSTER_PG_PASSWORD: ${DAGSTER_PG_PASSWORD}
       DAGSTER_PG_DB: dagster
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
       REDIS_URL: redis://redis:6379/0
@@ -165,9 +167,9 @@ services:
       DATAPROC_SERVICE_ACCOUNT: ${DATAPROC_SERVICE_ACCOUNT:-}
       GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
     volumes:
-      - ../..:/workspace
-      - ./dagster/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
-      - ./dagster/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - ..:/workspace
+      - ./dockerfiles/dagster-config/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./dockerfiles/dagster-config/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
       - dagster_storage:/opt/dagster/dagster_home/storage
       - dagster_compute_logs:/opt/dagster/dagster_home/compute_logs
       - ${SA_KEY_PATH:-/dev/null}:/secrets/sa-key.json:ro
@@ -184,12 +186,12 @@ services:
       DAGSTER_HOME: /opt/dagster/dagster_home
       DAGSTER_PG_HOST: dagster-postgres
       DAGSTER_PG_USER: dagster
-      DAGSTER_PG_PASSWORD: dagster
+      DAGSTER_PG_PASSWORD: ${DAGSTER_PG_PASSWORD}
       DAGSTER_PG_DB: dagster
     volumes:
-      - ../..:/workspace
-      - ./dagster/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
-      - ./dagster/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - ..:/workspace
+      - ./dockerfiles/dagster-config/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./dockerfiles/dagster-config/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
       - dagster_storage:/opt/dagster/dagster_home/storage
       - dagster_compute_logs:/opt/dagster/dagster_home/compute_logs
     ports:
@@ -209,12 +211,12 @@ services:
       DAGSTER_HOME: /opt/dagster/dagster_home
       DAGSTER_PG_HOST: dagster-postgres
       DAGSTER_PG_USER: dagster
-      DAGSTER_PG_PASSWORD: dagster
+      DAGSTER_PG_PASSWORD: ${DAGSTER_PG_PASSWORD}
       DAGSTER_PG_DB: dagster
     volumes:
-      - ../..:/workspace
-      - ./dagster/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
-      - ./dagster/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
+      - ..:/workspace
+      - ./dockerfiles/dagster-config/dagster.yaml:/opt/dagster/dagster_home/dagster.yaml:ro
+      - ./dockerfiles/dagster-config/workspace.yaml:/opt/dagster/dagster_home/workspace.yaml:ro
       - dagster_storage:/opt/dagster/dagster_home/storage
       - dagster_compute_logs:/opt/dagster/dagster_home/compute_logs
     depends_on:

@@ -27,8 +27,8 @@ import redis.asyncio as aioredis
 import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel
-from common.postgres import get_all_tickers as _get_all_tickers
-from common.redis_keys import ASSIGNMENTS_KEY, CHANNEL, NODE_COUNT_KEY
+from core.postgres import get_all_tickers as _get_all_tickers
+from core.redis_keys import ASSIGNMENTS_KEY, CHANNEL, NODE_COUNT_KEY
 
 logging.basicConfig(
     level=logging.INFO,

@@ -3,7 +3,7 @@ Market status endpoint — public (no auth required).
 """
 
 from fastapi import APIRouter
-from common.market import get_market_status
+from core.market import get_market_status
 
 router = APIRouter()
 

@@ -13,9 +13,9 @@ from pathlib import Path
 
 import asyncpg
 import redis
-from common.market import PERF_LABELS, fetch_close, trading_dates
-from common.postgres import get_all_tickers
-from common.redis_keys import LABEL_TO_REF, TICKER_KEY
+from core.market import PERF_LABELS, fetch_close, trading_dates
+from core.postgres import get_all_tickers
+from core.redis_keys import LABEL_TO_REF, TICKER_KEY
 from dotenv import load_dotenv
 from massive import RESTClient
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pulls secrets from GCP Secret Manager and writes deploy/secrets/.env for compose.
+# Pulls secrets from GCP Secret Manager and writes deploy/host/.env for compose.
 #
 # Auth: relies on whatever gcloud is currently authenticated as. On the homelab,
 # activate the SA key first:
@@ -7,17 +7,18 @@
 # On the GCP VM, the attached SA is used automatically.
 #
 # Usage:
-#   ./deploy/secrets/load_secrets.sh                # writes deploy/secrets/.env
-#   ./deploy/secrets/load_secrets.sh /custom/.env   # writes to a custom path
+#   ./deploy/host/load_secrets.sh                # writes deploy/host/.env
+#   ./deploy/host/load_secrets.sh /custom/.env   # writes to a custom path
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-OUT_FILE="${1:-$REPO_ROOT/deploy/secrets/.env}"
+OUT_FILE="${1:-$REPO_ROOT/deploy/host/.env}"
 PROJECT_ID="${GCP_PROJECT_ID:?set GCP_PROJECT_ID (e.g. export GCP_PROJECT_ID=finpipe-prod)}"
 
 # Map of compose env var -> Secret Manager secret name. Add rows as needed.
 declare -A SECRETS=(
   [POSTGRES_PASSWORD]=finpipe-postgres-password
+  [DAGSTER_PG_PASSWORD]=finpipe-dagster-postgres-password
   [JWT_SECRET]=finpipe-jwt-secret
   [MASSIVE_API_KEY]=massive-api-key
   [CLOUDFLARED_TOKEN]=finpipe-cloudflared-token

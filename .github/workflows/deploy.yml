@@ -51,10 +51,10 @@ jobs:
             CHANGED=$(git diff --name-only "$BEFORE" "$AFTER")
           fi
 
-          if echo "$CHANGED" | grep -qE '^(deploy/|common/|streaming/)'; then
+          if echo "$CHANGED" | grep -qE '^(deploy/|backend/|streaming/)'; then
             echo "streaming=true" >> "$GITHUB_OUTPUT"
           fi
-          if echo "$CHANGED" | grep -qE '(dagster|common)/pyproject.toml'; then
+          if echo "$CHANGED" | grep -qE '(dagster|backend)/pyproject.toml'; then
             echo "dagster_deps=true" >> "$GITHUB_OUTPUT"
           fi
           # Bind-mounted code: pull updates files but the code server keeps old defs until restart.

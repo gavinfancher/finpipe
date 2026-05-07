@@ -70,10 +70,9 @@ Dagster (webserver, daemon, code location) currently runs alongside the streamin
 finpipe/
 ├── backend/           # FastAPI app, WebSocket relay, ingest, control
 │   ├── api/           # REST: auth, tickers, positions, market, health
-│   ├── core/          # config, auth, DB, enrichment, state
+│   ├── core/          # config, auth, DB, enrichment, state, shared schemas/keys
 │   ├── streaming/     # relay, ingest, control entrypoints
 │   └── tools/         # e.g. seed_redis, SQL migrations
-├── common/            # Shared Python: schemas, market calendar, Redis keys
 ├── dagster/           # Assets, jobs (backfill, close-of-day), sensors, Spark drivers
 ├── deploy/
 │   ├── docker/        # Dockerfiles (streaming, Dagster)
@@ -100,7 +99,7 @@ finpipe/
 | In-memory columnar | PyArrow                                                                     |
 | Frontend           | React, TypeScript, Vite                                                     |
 | Edge / tunnel      | Cloudflare (Pages for static UI, Tunnel for `api.finpipe.app`)              |
-| Python tooling     | [uv](https://docs.astral.sh/uv/) workspace (`backend`, `dagster`, `common`) |
+| Python tooling     | [uv](https://docs.astral.sh/uv/) workspace (`backend`, `dagster`)           |
 
 
 ---
@@ -154,6 +153,5 @@ The deploy workflow does **not** build the frontend; production static assets fo
 - `[deploy/README.md](deploy/README.md)` — EC2 compose, secrets, tunnel, Make targets  
 - `[infra/README.md](infra/README.md)` — provisioning order for AWS resources  
 - `[backend/README.md](backend/README.md)` — streaming service design  
-- `[dagster/README.md](dagster/README.md)` — lakehouse pipeline and backfill strategy  
-- `[common/README.md](common/README.md)` — shared library notes
+- `[dagster/README.md](dagster/README.md)` — lakehouse pipeline and backfill strategy
 

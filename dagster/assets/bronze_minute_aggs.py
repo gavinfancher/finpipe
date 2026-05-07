@@ -22,7 +22,7 @@ from dagster import (
     asset,
 )
 
-from common.schemas import BRONZE_SCHEMA, CSV_CONVERT_OPTS, CSV_READ_OPTS, MASSIVE_COLUMNS
+from core.schemas import BRONZE_SCHEMA, CSV_CONVERT_OPTS, CSV_READ_OPTS, MASSIVE_COLUMNS
 from resources.massive_s3 import MassiveS3Resource
 
 S3_BUCKET = "finpipe-lakehouse"

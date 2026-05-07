@@ -5,7 +5,7 @@ import os
 import asyncpg
 from dagster import ConfigurableResource
 
-from common.postgres import get_all_tickers
+from core.postgres import get_all_tickers
 
 
 class PostgresResource(ConfigurableResource):
